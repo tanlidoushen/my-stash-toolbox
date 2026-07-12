@@ -1,7 +1,8 @@
 # Stash 小工具集
 
  
-[Stash Subtitle Assistant](https://github.com/tanlidoushen/my-stash-toolbox/tree/main/plugins/StashSubtitleAssistant) -> 迅雷搜索 → 字幕下载 → 写入视频同目录，仅处理新生成的字幕文件。
+[Stash Subtitle Assistant](https://github.com/tanlidoushen/my-stash-toolbox/tree/main/plugins/StashSubtitleAssistant) → 检索并下载字幕至视频目录，随后仅针对该新建字幕执行扫描
+
 
 ## 鸣谢
 - 感谢 [ag123gfa12/JAV-JHS](https://github.com/ag123gfa12/JAV-JHS) 提供的字幕 API 调用及脚本样式参考。  
