@@ -1,0 +1,22 @@
+name: Stash Subtitle Assistant
+description: 从场景页面搜索、预览并保存字幕；网络请求和本地文件写入均在 Stash 后端执行。
+version: 2.0.0
+url: https://github.com/your-username/test-plugin
+
+# Python 在运行 Stash 的同一台机器（或容器）中执行。
+interface: raw
+exec:
+  - python
+  - "{pluginDir}/subtitle_assistant_backend.py"
+errLog: info
+
+ui:
+  javascript:
+    - subtitle_assistant.js
+
+# 供 UI 通过 runPluginOperation 调用后端的操作。后端不需要暴露 HTTP 端口。
+tasks:
+  - name: Subtitle operation
+    description: 后端字幕搜索、预览和保存操作
+    defaultArgs:
+      mode: search
