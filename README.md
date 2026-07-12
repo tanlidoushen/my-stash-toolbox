@@ -1,7 +1,7 @@
 # Stash 小工具集
 
  
-[Stash Subtitle Assistant](https://github.com/tanlidoushen/my-stash-toolbox/tree/main/plugins) → 检索并下载字幕至视频目录，随后仅针对该新建字幕执行扫描
+[Stash Subtitle Assistant](https://github.com/tanlidoushen/my-stash-toolbox/tree/main/plugins) → steash插件，功能为检索并下载字幕至视频目录，随后仅针对该新建字幕执行扫描
 
 
 ## 鸣谢
