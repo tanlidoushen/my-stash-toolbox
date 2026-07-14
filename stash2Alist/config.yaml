@@ -1,0 +1,42 @@
+﻿# stash2Alist 配置文件
+server:
+  host: "0.0.0.0"
+  port: 8000
+  debug: false  # 设为 true 开启调试模式，每个请求打印详细信息
+
+# Stash 服务器地址
+stash:
+  url: "http://192.168.1.100:9999"
+  api_key: ""  # 如果 Stash 配置了 API 密钥
+
+# Alist 服务器地址
+alist:
+  url: "http://192.168.1.100:5244"
+  request:
+    timeout: 10       # 请求 /d/{path} 超时时间（秒），超过则重试
+    retries: 3        # 超时后最多重试次数
+    retry_delay: 0.5  # 重试间隔（秒）
+
+# 路径映射规则：将 Stash 中的文件本地路径前缀映射到 Alist 中的虚拟路径前缀
+# local:  Stash 中文件的本地路径前缀（rclone 挂载路径）
+# alist:  对应的 Alist 存储路径前缀（与 Alist 后台配置的挂载路径名一致）
+path_mappings:
+  - local: "/mnt/alist115"
+    alist: "/115"
+  - local: "/mnt/onedrive"
+    alist: "/od"
+
+# 缓存配置
+cache:
+  max_size: 1000  # 最大缓存条目数（全局）
+
+  # Alist 网盘直链缓存
+  # 使用直链 URL 自带的 t 参数（Unix 时间戳）动态计算缓存 TTL。
+  # 仅当直链 URL 包含 t 参数时才会缓存，否则该条不缓存。
+  alist:
+    enabled: true
+
+  # Stash 场景文件路径缓存（固定 TTL）
+  # 缓存从 Stash GraphQL 查询到的场景文件路径，减少重复查询。
+  stash:
+    ttl: 3600  # 场景路径缓存时间（秒），过期后重新查询 Stash
