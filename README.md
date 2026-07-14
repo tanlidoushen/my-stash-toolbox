@@ -9,6 +9,9 @@
 - 感谢 [hippochapel/hippo-stash-plugins](https://github.com/hippochapel/hippo-stash-plugins/tree/main/plugins/SpriteTab) 的按键注入与面板实现参考。
 - 感谢 [bpking1/embyExternalUrl](https://github.com/bpking1/embyExternalUrl/blob/main/FAQ.md#6115-%E5%86%85%E5%AE%B9%E6%97%A0%E6%B3%95-web-%E7%AB%AF%E6%92%AD%E6%94%BEhtmlvideoplayer-%E8%B7%A8%E5%9F%9F) 的htmlvideoplayer跨域实现。  
 
+## 推荐项目
+
+- [feldorn/Stash-Jellyfin-Proxy](https://github.com/feldorn/Stash-Jellyfin-Proxy) - Jellyfin API 模拟代理，让 Jellyfin 兼容的播放器（如 Infuse、Yamby）能够直接浏览和播放 Stash 媒体库。
 
 
 - 本工具大部分使用 Vibe Coding 方式开发。
