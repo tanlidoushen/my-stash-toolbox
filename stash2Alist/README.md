@@ -1,6 +1,10 @@
 # stash2alist
 
-基于 **OpenResty (nginx + Lua)** 的 Stash 流媒体透明代理，支持 **Alist** 和 **CloudDrive2** 两种直链获取方式，可运行时切换。
+[![License](https://img.shields.io/badge/License-MIT-green)](../LICENSE)
+
+> 基于 **OpenResty (nginx + Lua)** 的 Stash 流媒体透明代理，支持 **Alist** 和 **CloudDrive2** 两种直链获取方式，可运行时切换。
+
+---
 
 ## 架构
 
@@ -29,6 +33,8 @@ Browser ──→ OpenResty:8000
                           └── 302 → CloudDrive2 下载链接播放
 ```
 
+---
+
 ## 环境变量
 
 | 变量 | 必填 | 默认值 | 说明 |
@@ -41,6 +47,19 @@ Browser ──→ OpenResty:8000
 | `CACHE_TTL` | 否 | `3600` | Alist 直链缓存默认 TTL（秒） |
 | `STASH_API_KEY` | 否 | `""` | Stash API 密钥（可选） |
 | `DEFAULT_MODE` | 否 | `alist` | 默认直链模式：`alist` 或 `cd2` |
+
+---
+
+## 快速启动
+
+```bash
+cd stash2alist
+
+# 按需编辑 docker-compose.yml 中的环境变量
+docker compose up -d
+```
+
+---
 
 ## 路径映射配置
 
@@ -65,6 +84,8 @@ CD2_PATH_MAPPINGS: >
 - `local`: Stash 中文件的本地路径前缀
 - `alist` / `cd2`: 对应的虚拟路径前缀
 - 规则按 `local` 长度降序匹配（最长前缀优先）
+
+---
 
 ## 运行时切换模式
 
@@ -95,32 +116,17 @@ curl -X POST http://localhost:9997/api/mode \
 
 > 模式切换立即生效，无需重启容器。重启后恢复为 `DEFAULT_MODE`。
 
-## CloudDrive2 下载链接格式
+---
 
-CloudDrive2 下载链接格式为：
+## CloudDrive2 下载链接格式
 
 ```
 {CD2_BASE}/static/http/{CD2_BASE}/False/{URL_ENCODED_PATH}
 ```
 
-例如：
-```
-http://<cd2-server>:19798/static/http/<cd2-server>:19798/False/%2F<cloud-path>%2Ftest.mkv
-```
-
-其中 `%2F<cloud-path>%2Ftest.mkv` 是 URL 编码后的 CloudDrive2 路径 `/<cloud-path>/test.mkv`。
-
 CloudDrive2 下载链接是确定性的（格式固定），无需像 Alist 那样请求 `/d/` 获取 302，因此不需要缓存。
 
-## 快速启动
-
-```bash
-cd stash2alist
-
-# 按需编辑 docker-compose.yml 中的环境变量
-
-docker compose up -d
-```
+---
 
 ## 直链获取流程
 
@@ -139,3 +145,9 @@ docker compose up -d
 ## 降级策略
 
 如果任一环节失败（Stash 无响应、路径无匹配等），自动降级为 `@stash_direct`——直接透传回 Stash。
+
+---
+
+## 许可证
+
+[MIT](../LICENSE)

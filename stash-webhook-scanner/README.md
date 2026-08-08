@@ -32,7 +32,6 @@
   - `/start` — 内联键盘主菜单，所有功能可视化导航
   - **自动通知** — 刮削/归类完成后自动推送结果（含海报预览）
 - **WebSocket 订阅** — 实时监听 Stash 扫描/刮削任务状态
-- **通知系统** — 刮削完成后通过 Telegram 发送通知（含海报预览）
 
 ---
 
@@ -70,7 +69,6 @@ stash-webhook-scanner/
 ├── mover/                      # 文件归类搬运
 │   ├── mover.py                #   搬移引擎
 │   ├── handler.py              #   事件处理
-│   └── handler.7z              #   7z 压缩包（辅助脚本）
 ├── bot/                        # Telegram Bot
 │   ├── app.py                  #   Bot 入口
 │   ├── handlers.py             #   消息处理器

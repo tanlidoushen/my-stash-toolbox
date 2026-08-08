@@ -1,24 +1,35 @@
 # Stash 小工具集
 
- 
-[Stash Subtitle Assistant](https://github.com/tanlidoushen/my-stash-toolbox/tree/main/plugins) → steash插件，功能为检索并下载字幕至视频目录，随后仅针对该新建字幕执行扫描
+[![Python](https://img.shields.io/badge/Python-3.12%2B-blue)](https://www.python.org)
+[![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
-[Stash2Alist](https://github.com/tanlidoushen/my-stash-toolbox/tree/main/stash2Alist) → Stash 视频播放时重定向到 Alist 直链
+---
 
-[stash-webhook-scanner](https://github.com/tanlidoushen/my-stash-toolbox/tree/main/stash-webhook-scanner) → 通过CloudDrive2的 Webhook 通知，在文件新增或移动时实时触发 Stash 扫描与刮削
+> 围绕 Stash 的一系列实用工具，覆盖自动刮削、流媒体代理、字幕下载等场景。
+
+---
+
+## 工具列表
+
+| 工具 | 说明 |
+|------|------|
+| [stash-webhook-scanner](stash-webhook-scanner/) | 通过 CloudDrive2 Webhook 实时触发 Stash 扫描、刮削、归类与搬运 |
+| [stash2Alist](stash2Alist/) | 基于 OpenResty 的 Stash 流媒体透明代理，支持 Alist / CloudDrive2 双模式 |
+| [plugins/StashSubtitleAssistant](plugins/StashSubtitleAssistant/) | Stash 插件：检索并下载字幕至视频目录，自动触发扫描 |
+
+---
 
 ## 鸣谢
-- 感谢 [ag123gfa12/JAV-JHS](https://github.com/ag123gfa12/JAV-JHS) 字幕 API 调用及脚本样式参考。  
-- 感谢 [hippochapel/hippo-stash-plugins](https://github.com/hippochapel/hippo-stash-plugins/tree/main/plugins/SpriteTab) 的按键注入与面板实现参考。
-- 感谢 [bpking1/embyExternalUrl](https://github.com/bpking1/embyExternalUrl/blob/main/FAQ.md#6115-%E5%86%85%E5%AE%B9%E6%97%A0%E6%B3%95-web-%E7%AB%AF%E6%92%AD%E6%94%BEhtmlvideoplayer-%E8%B7%A8%E5%9F%9F) 的htmlvideoplayer跨域实现。  
+
+- 感谢 [ag123gfa12/JAV-JHS](https://github.com/ag123gfa12/JAV-JHS) 字幕 API 调用及脚本样式参考
+- 感谢 [hippochapel/hippo-stash-plugins](https://github.com/hippochapel/hippo-stash-plugins) 的按键注入与面板实现参考
+- 感谢 [bpking1/embyExternalUrl](https://github.com/bpking1/embyExternalUrl) 的 htmlvideoplayer 跨域实现参考
 
 ## 推荐项目
 
-- [feldorn/Stash-Jellyfin-Proxy](https://github.com/feldorn/Stash-Jellyfin-Proxy) - Jellyfin API 模拟代理，让 Jellyfin 兼容的播放器（如 Infuse、Yamby）能够直接浏览和播放 Stash 媒体库。
+- [feldorn/Stash-Jellyfin-Proxy](https://github.com/feldorn/Stash-Jellyfin-Proxy) — Jellyfin API 模拟代理，让 Infuse、Yamby 等播放器直接浏览 Stash 媒体库
 
+---
 
-- 本工具大部分使用 Vibe Coding 方式开发。
-
-
-
-> 本项目遵循 [MIT License](LICENSE) 开源协议。
+> 本工具大部分使用 Vibe Coding 方式开发。
+> 遵循 [MIT License](LICENSE) 开源协议。
