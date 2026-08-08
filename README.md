@@ -3,7 +3,7 @@
  
 [Stash Subtitle Assistant](https://github.com/tanlidoushen/my-stash-toolbox/tree/main/plugins) → steash插件，功能为检索并下载字幕至视频目录，随后仅针对该新建字幕执行扫描
 
-[Stash2Alist](https://github.com/tanlidoushen/my-stash-toolbox/tree/main/stash2Alist) → stash 视频播放时重定向到 alist 直链
+[Stash2Alist](https://github.com/tanlidoushen/my-stash-toolbox/tree/main/stash2Alist) → Stash 视频播放时重定向到 Alist 直链
 
 [stash-webhook-scanner](https://github.com/tanlidoushen/my-stash-toolbox/tree/main/stash-webhook-scanner) → 通过CloudDrive2的 Webhook 通知，在文件新增或移动时实时触发 Stash 扫描与刮削
 

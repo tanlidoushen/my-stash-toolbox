@@ -1,116 +1,151 @@
-﻿# stash2Alist
+# stash2alist
 
-> **Stash** 流媒体播放请求透明劫持 → 重定向到 **Alist** 直链，实现在线播放不走 Stash 服务器带宽。
+基于 **OpenResty (nginx + Lua)** 的 Stash 流媒体透明代理，支持 **Alist** 和 **CloudDrive2** 两种直链获取方式，可运行时切换。
 
-[![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](https://www.python.org)
-[![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
+## 架构
 
----
-
-
-
-## 快速开始 / Quick Start
-
-### 1. 安装依赖
-
-```bash
-pip install -r requirements.txt
+```
+Browser ──→ OpenResty:8000
+              ├── / → proxy_pass → Stash:9999
+              │     ├── Host 透传（Stash 生成正确 URL）
+              │     ├── 响应体改写（移除 crossorigin）
+              │     └── WebSocket 支持
+              │
+              ├── /api/mode → 运行时切换直链模式
+              │
+              └── /scene/{id}/stream → Lua 业务逻辑
+                    ├── 查询 Stash GraphQL（查文件路径）
+                    ├── 读取当前模式（alist / clouddrive2）
+                    │
+                    ├── [alist 模式]
+                    │     ├── Alist 路径映射
+                    │     ├── 缓存检查
+                    │     ├── 请求 Alist /d/{path}（跟 302）
+                    │     └── 302 → CDN 直链播放
+                    │
+                    └── [cd2 模式]
+                          ├── CloudDrive2 路径映射
+                          ├── 构造 CloudDrive2 下载链接（无需请求）
+                          └── 302 → CloudDrive2 下载链接播放
 ```
 
-### 2. 修改配置
+## 与 stash2Alist-ori 的区别
 
-编辑 `config.yaml`：
+| 特性 | stash2Alist-ori | stash2alist |
+|------|-----------------|-----------|
+| Alist 直链 | ✅ | ✅ |
+| CloudDrive2 下载链接 | ❌ | ✅ |
+| 路径映射 | 单套 (PATH_MAPPINGS) | 双套 (PATH_MAPPINGS + CD2_PATH_MAPPINGS) |
+| 运行时切换 | ❌ | ✅ (/api/mode) |
+| 默认模式 | 固定 Alist | 可配置 (DEFAULT_MODE) |
+
+## 环境变量
+
+| 变量 | 必填 | 默认值 | 说明 |
+|------|------|--------|------|
+| `STASH_SERVER` | 否 | `http://127.0.0.1:9999` | Stash 服务器地址 |
+| `ALIST_SERVER` | 否 | `http://127.0.0.1:5244` | Alist 服务器地址 |
+| `CD2_SERVER` | 否 | `http://127.0.0.1:19798` | CloudDrive2 服务器地址 |
+| `PATH_MAPPINGS` | 否 | `[]` | Alist 路径映射规则（JSON 数组） |
+| `CD2_PATH_MAPPINGS` | 否 | `[]` | CloudDrive2 路径映射规则（JSON 数组） |
+| `CACHE_TTL` | 否 | `3600` | Alist 直链缓存默认 TTL（秒） |
+| `STASH_API_KEY` | 否 | `""` | Stash API 密钥（可选） |
+| `DEFAULT_MODE` | 否 | `alist` | 默认直链模式：`alist` 或 `cd2` |
+
+## 路径映射配置
+
+### Alist 映射 (PATH_MAPPINGS)
 
 ```yaml
-stash:
-  url: "http://192.168.1.100:9999"   # 你的 Stash 地址
-
-alist:
-  url: "http://192.168.1.100:5244"   # 你的 Alist 地址
-
-path_mappings:
-  - local: "/mnt/alist115"    # rclone 挂载路径
-    alist: "/115"             # Alist 中对应的存储路径
-
+PATH_MAPPINGS: >
+  [
+    {"local":"/local/mount/path","alist":"/alist/virtual/path"}
+  ]
 ```
 
+### CloudDrive2 映射 (CD2_PATH_MAPPINGS)
 
-### 3. 启动
+```yaml
+CD2_PATH_MAPPINGS: >
+  [
+    {"local":"/local/mount/path","cd2":"/cd2/virtual/path"}
+  ]
+```
+
+- `local`: Stash 中文件的本地路径前缀
+- `alist` / `cd2`: 对应的虚拟路径前缀
+- 规则按 `local` 长度降序匹配（最长前缀优先）
+
+## 运行时切换模式
+
+### 查看当前模式
 
 ```bash
-# 使用默认配置 (config.yaml)
-python -m stash2Alist
-
-# 指定配置路径
-python -m stash2Alist --config /path/to/config.yaml
-
-# 覆盖监听地址
-python -m stash2Alist --host 0.0.0.0 --port 8000
-
-# 详细日志 / 调试模式
-python -m stash2Alist -v
-python -m stash2Alist --debug
+curl http://localhost:9997/api/mode
+# {"mode":"alist","default":"alist"}
 ```
 
+### 切换到 CloudDrive2
 
-
----
-
-## 项目结构 / Project Structure
-
-```
-stash2Alist/
-├── __init__.py         # 包版本信息
-├── __main__.py         # CLI 入口
-├── app.py              # Starlette 应用 + 路由 + 透明代理
-├── config.yaml         # 配置文件
-├── requirements.txt    # Python 依赖
-├── cache.py            # TTL 缓存（异步安全）
-├── path_mapper.py      # 路径前缀映射
-├── stash/
-│   ├── __init__.py
-│   └── client.py       # Stash GraphQL 客户端
-└── alist/
-    ├── __init__.py
-    └── client.py       # Alist 直链获取（拼接 /d/{path} + 跟 302）
+```bash
+curl -X POST http://localhost:9997/api/mode \
+  -H "Content-Type: application/json" \
+  -d '{"mode":"cd2"}'
+# {"mode":"cd2","message":"switched to cd2"}
 ```
 
----
+### 切换回 Alist
 
-## 配置参考 / Configuration
+```bash
+curl -X POST http://localhost:9997/api/mode \
+  -H "Content-Type: application/json" \
+  -d '{"mode":"alist"}'
+# {"mode":"alist","message":"switched to alist"}
+```
 
-### 环境变量
+> 模式切换立即生效，无需重启容器。重启后恢复为 `DEFAULT_MODE`。
 
-| 变量名 | 作用 |
-|--------|------|
-| `STASH2ALIST_CONFIG` | 指定配置文件路径（替代 `--config` 参数） |
+## CloudDrive2 下载链接格式
 
-### CLI 参数
+CloudDrive2 下载链接格式为：
 
-| 参数 | 说明 |
-|------|------|
-| `--config PATH` | 配置文件路径（默认: `config.yaml`） |
-| `--host HOST` | 监听地址（覆盖配置） |
-| `--port PORT` | 监听端口（覆盖配置） |
-| `--debug` | 调试模式，打印每个请求的详细信息 |
-| `-v / --verbose` | 详细日志输出 |
+```
+{CD2_BASE}/static/http/{CD2_BASE}/False/{URL_ENCODED_PATH}
+```
 
-### 信息接口
+例如：
+```
+http://<cd2-server>:19798/static/http/<cd2-server>:19798/False/%2F<cloud-path>%2Ftest.mkv
+```
 
-启动后访问 `http://host:8000/info` 可查看当前配置摘要。
+其中 `%2F<cloud-path>%2Ftest.mkv` 是 URL 编码后的 CloudDrive2 路径 `/<cloud-path>/test.mkv`。
 
----
+CloudDrive2 下载链接是确定性的（格式固定），无需像 Alist 那样请求 `/d/` 获取 302，因此不需要缓存。
 
-## 依赖 / Dependencies
+## 快速启动
 
-- [Starlette](https://www.starlette.io/) — Web 框架
-- [Uvicorn](https://www.uvicorn.org/) — ASGI 服务器
-- [httpx](https://www.python-httpx.org/) — HTTP 客户端（异步）
-- [PyYAML](https://pyyaml.org/) — YAML 解析
-- [websockets](https://websockets.readthedocs.io/) — WebSocket 代理
+```bash
+cd stash2alist
 
----
+# 按需编辑 docker-compose.yml 中的环境变量
 
-## License
+docker compose up -d
+```
 
-[MIT](LICENSE)
+## 直链获取流程
+
+1. 客户端请求 `/scene/{id}/stream`
+2. OpenResty 读取当前模式（共享字典 / 默认值）
+3. 通过内部 subrequest 查询 Stash GraphQL，获取文件路径
+4. **Alist 模式**：
+   - 根据 `PATH_MAPPINGS` 映射为 Alist 路径
+   - 请求 Alist `/d/{path}` 获取 302 直链
+   - 缓存直链并 302 重定向
+5. **CloudDrive2 模式**：
+   - 根据 `CD2_PATH_MAPPINGS` 映射为 CloudDrive2 路径
+   - 直接构造 CloudDrive2 下载链接 URL
+   - 302 重定向到 CloudDrive2 下载链接
+
+## 降级策略
+
+如果任一环节失败（Stash 无响应、路径无匹配等），自动降级为 `@stash_direct`——直接透传回 Stash。

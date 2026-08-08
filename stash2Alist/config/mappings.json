@@ -1,0 +1,10 @@
+[
+  {
+    "local": "/local/mount/path",
+    "remote": "/alist/virtual/path"
+  },
+  {
+    "local": "/local/mount/path",
+    "remote": "/cd2/virtual/path"
+  }
+]

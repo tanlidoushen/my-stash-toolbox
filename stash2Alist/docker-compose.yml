@@ -1,0 +1,30 @@
+services:
+  stash2alist:
+    image: openresty/openresty:alpine
+    container_name: stash2alist
+    restart: unless-stopped
+    ports:
+      - "9997:8000"
+    environment:
+      STASH_SERVER: "http://stash:9999"
+      ALIST_SERVER: "http://openlist:5244"
+      CD2_SERVER: "http://<cd2-server>:19798"
+      CACHE_TTL: "3600"
+      STASH_API_KEY: ""
+      DEFAULT_MODE: "alist"
+    volumes:
+      - ./nginx.conf:/usr/local/openresty/nginx/conf/nginx.conf:ro
+      - ./conf.d:/usr/local/openresty/nginx/conf/conf.d:ro
+      - ./lua:/usr/local/openresty/nginx/lua:ro
+      - ./config:/usr/local/openresty/nginx/config:ro
+    networks:
+      - stash2alist_default
+      - stash_default
+      - openlist_default
+
+networks:
+  stash2alist_default:
+  stash_default:
+    external: true
+  openlist_default:
+    external: true

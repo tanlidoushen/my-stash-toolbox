@@ -1,2 +1,7 @@
 flask>=3.0
 requests>=2.31
+beautifulsoup4
+zhconv
+python-telegram-bot>=20.0
+gql[websockets]>=3.5
+grpcio>=1.60

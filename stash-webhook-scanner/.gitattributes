@@ -1,0 +1,18 @@
+# 统一文本文件为 LF 换行（UTF-8，无 BOM）
+* text=auto eol=lf
+
+# 二进制文件不参与换行转换
+*.7z binary
+*.zip binary
+*.gz binary
+*.tar binary
+*.pyc binary
+*.pyo binary
+*.db binary
+*.sqlite binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
