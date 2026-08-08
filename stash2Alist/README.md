@@ -29,16 +29,6 @@ Browser ──→ OpenResty:8000
                           └── 302 → CloudDrive2 下载链接播放
 ```
 
-## 与 stash2Alist-ori 的区别
-
-| 特性 | stash2Alist-ori | stash2alist |
-|------|-----------------|-----------|
-| Alist 直链 | ✅ | ✅ |
-| CloudDrive2 下载链接 | ❌ | ✅ |
-| 路径映射 | 单套 (PATH_MAPPINGS) | 双套 (PATH_MAPPINGS + CD2_PATH_MAPPINGS) |
-| 运行时切换 | ❌ | ✅ (/api/mode) |
-| 默认模式 | 固定 Alist | 可配置 (DEFAULT_MODE) |
-
 ## 环境变量
 
 | 变量 | 必填 | 默认值 | 说明 |
