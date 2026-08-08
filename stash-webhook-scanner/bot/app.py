@@ -203,25 +203,42 @@ def run_bot(mover_handler=None):
     RuntimeError: set_wakeup_fd only works in main thread）。
     改用 initialize + start_polling + start 手动启动并常驻事件循环。
     """
-    app = build_application(mover_handler=mover_handler)
     logger.info("🤖 Telegram 机器人开始监听..")
 
-    async def _run_forever():
-        await app.initialize()
-        await app.updater.start_polling(allowed_updates=Update.ALL_TYPES)
-        await app.start()
+    async def _run_forever_with_retry():
         while True:
-            await asyncio.sleep(3600)
+            try:
+                app = build_application(mover_handler=mover_handler)
+                await app.initialize()
+                await app.updater.start_polling(allowed_updates=Update.ALL_TYPES)
+                await app.start()
+                while True:
+                    await asyncio.sleep(3600)
+            except (NetworkError, TimedOut, OSError) as e:
+                logger.warning(f"🌐 网络连接异常: {e}, 10秒后重连...")
+                try:
+                    await app.stop()
+                    await app.shutdown()
+                except Exception:
+                    pass
+                await asyncio.sleep(10)
+            except Exception as e:
+                logger.error(f"💥 Bot 异常崩溃: {e}, 5秒后重启...")
+                try:
+                    await app.stop()
+                    await app.shutdown()
+                except Exception:
+                    pass
+                await asyncio.sleep(5)
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:
-        loop.run_until_complete(_run_forever())
+        loop.run_until_complete(_run_forever_with_retry())
     except (KeyboardInterrupt, SystemExit):
         pass
     finally:
         try:
-            loop.run_until_complete(app.stop())
-            loop.run_until_complete(app.shutdown())
-        finally:
             loop.close()
+        except Exception:
+            pass
