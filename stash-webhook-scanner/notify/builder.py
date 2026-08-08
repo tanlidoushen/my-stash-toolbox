@@ -156,3 +156,4 @@ async def build_caption(scene, is_japanese, client, stash_base_url, title_prefix
         lines.append("\n🏷️ <b>标签:</b> %s" % " ".join(tags_list))
 
     return "\n".join(lines)
+

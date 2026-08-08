@@ -103,3 +103,4 @@ async def enrich_scene_metadata(client, scene_id, stash_id, stash_box_index=0):
 
     current_info = await scene_mod.get_scene_info(client, scene_id)
     return await update_scene_metadata(client, scene_id, scraped, current_info, stash_box_index)
+

@@ -76,3 +76,4 @@ def compare_studio(current_studio, scraped_studio):
         if current.get("name") != scraped.get("name"):
             return True, "工作室名称不同: %s -> %s" % (current.get("name"), scraped.get("name")), scraped
     return False, "工作室无变化", None
+

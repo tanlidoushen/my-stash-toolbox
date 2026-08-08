@@ -130,3 +130,4 @@ async def _send_via_httpx(caption, chat_id, img_data, scene_id):
         except Exception as e:
             logger.error("场景 %s TG 推送异常 (httpx): %s", scene_id, e)
             return False
+

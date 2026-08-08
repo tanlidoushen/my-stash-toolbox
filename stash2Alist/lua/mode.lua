@@ -47,3 +47,4 @@ end
 ngx.status = 405
 ngx.header["Content-Type"] = "application/json"
 ngx.say(cjson.encode({ error = "method not allowed" }))
+

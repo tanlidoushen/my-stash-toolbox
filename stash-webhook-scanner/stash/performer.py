@@ -107,3 +107,4 @@ def compare_performers(current_performers, scraped_performers):
         if sname and sname not in current_names:
             to_add.append(sp)
     return to_add
+

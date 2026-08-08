@@ -78,3 +78,4 @@ async def update_scene(client, input_data):
         return True
     logger.error("         - 更新失败 | 场景=%s", input_data.get("id"))
     return False
+

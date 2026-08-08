@@ -20,3 +20,4 @@ COPY . .
 EXPOSE 9991
 
 CMD ["python", "app.py"]
+

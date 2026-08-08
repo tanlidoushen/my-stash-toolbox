@@ -382,3 +382,4 @@ async def cmd_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"<code>{e}</code>",
             parse_mode="HTML",
         )
+

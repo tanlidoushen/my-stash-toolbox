@@ -139,3 +139,4 @@
   new MutationObserver(() => { if (sceneId()) init(); else { byId('stash-test-panel')?.remove(); byId('stash-test-toolbar-btn')?.remove(); panelVisible = false; } }).observe(document.body, { childList: true, subtree: true });
   setTimeout(init, 500);
 })();
+

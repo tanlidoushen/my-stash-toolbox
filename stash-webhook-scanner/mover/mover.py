@@ -240,3 +240,4 @@ class FileMover:
                 logger.debug("[%s] 检查/删除目录失败 %s: %s", self.rule["name"], dir_path, e)
         logger.info("[%s] 空目录清理完成，共删除 %d 个", self.rule["name"], deleted_count)
         return deleted_count
+

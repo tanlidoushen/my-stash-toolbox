@@ -141,3 +141,4 @@ class StashClient:
 
     def invalidate_boxes_cache(self):
         self._boxes_cache = None
+

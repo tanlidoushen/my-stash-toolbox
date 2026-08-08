@@ -61,3 +61,4 @@ class PluginLoader:
                 logger.error("Failed to load plugin %s: %s", fname, e)
         
         return self._plugins
+

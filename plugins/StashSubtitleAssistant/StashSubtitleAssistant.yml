@@ -20,3 +20,4 @@ tasks:
     description: 后端字幕搜索、预览和保存操作
     defaultArgs:
       mode: search
+

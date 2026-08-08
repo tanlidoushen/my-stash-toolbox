@@ -77,3 +77,4 @@ def fmt_file_size(f):
         size_gb = round(size_bytes / (1024 ** 3), 2)
         return f"  • <code>{path}</code> — {size_gb} GB"
     return f"  • <code>{path}</code>"
+

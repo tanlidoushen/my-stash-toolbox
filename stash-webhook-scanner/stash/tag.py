@@ -88,3 +88,4 @@ async def compare_tags(client, current_tags, scraped_tags):
         merged = current_norm | scraped_norm
         return True, "发现 %d 个新标签" % len(new_tags), list(merged)
     return False, "无变化", []
+

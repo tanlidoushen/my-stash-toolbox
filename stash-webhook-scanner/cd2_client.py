@@ -226,3 +226,4 @@ def get_cd2_client():
             if _client is None:
                 _client = CD2Client(server=Config.CD2_SERVER, token=Config.CD2_TOKEN)
     return _client
+

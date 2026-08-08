@@ -108,3 +108,4 @@ function M.calc_dynamic_ttl(url, safety_margin)
 end
 
 return M
+

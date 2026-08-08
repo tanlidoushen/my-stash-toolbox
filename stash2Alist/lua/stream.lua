@@ -110,3 +110,4 @@ else
     cache:set(cache_key, direct_url, ttl)
     return ngx.redirect(direct_url, 302)
 end
+

@@ -99,3 +99,4 @@ class MyPlugin(BasePlugin):
 3. **Plugin 类** — 继承 `BasePlugin`，在 `scrape()` 中编排以上逻辑
 
 参考 `plugins/loader.py` 的 `PluginLoader.discover()` 了解加载细节。
+
