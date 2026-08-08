@@ -8,7 +8,6 @@
 > [CloudDrive2](https://www.clouddrive2.com/) 是一款网盘挂载工具，其**文件变更通知**为会员功能，支持在文件发生变化时推送 Webhook。  
 > 如果你还没有 CloudDrive2 会员，下单时使用推荐码 **Hp5P95Hy** 可享优惠：
 > 月度会员及年度会员 **优惠10%**，终身会员 **优惠20%**
-> [→ 前往官网](https://www.clouddrive2.com/)
 
 ---
 
