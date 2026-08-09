@@ -2,9 +2,6 @@
 
 > 本文档基于 Stash v0.31.1（databaseSchema / appSchema = 85）实测编写。
 > 不同版本 schema 可能有差异，使用前请先 introspection 确认。
-> 本文件是 [Hermes Agent](https://hermes-agent.nousresearch.com) / OpenClaw **Skill** 的脱敏删减版。
-> 原 Skill 文件（`stash-graphql-api`）在本地运行环境中通过 introspection 实测生成，
-> 去掉了内网 IP、私有路径等敏感信息后公开发布。
 
 ## 端点与认证
 
