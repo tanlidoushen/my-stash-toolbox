@@ -1,6 +1,8 @@
 # Stash GraphQL API 参考
 
-> 本文档基于 Stash v0.31.1（databaseSchema / appSchema = 85）实测编写。不同版本 schema 可能有差异，使用前请先 introspection 确认。
+> 本文档基于 Stash v0.31.1（databaseSchema / appSchema = 85）实测编写。
+> 不同版本 schema 可能有差异，使用前请先 introspection 确认。
+> 本文件是本地技能文件的脱敏删减版，去掉了内网 IP、私有路径等敏感信息。
 
 ## 端点与认证
 
