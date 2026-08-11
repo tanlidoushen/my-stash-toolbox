@@ -13,6 +13,7 @@
 
 | 工具 | 说明 |
 |------|------|
+| [clouddrive2-grpc-api](clouddrive2-grpc-api/) | CloudDrive2 gRPC API 参考文档，226 个 RPC 方法清单、调用指南与实测踩坑记录 |
 | [stash-webhook-scanner](stash-webhook-scanner/) | 通过 CloudDrive2 Webhook 实时触发 Stash 扫描、刮削、归类与搬运 |
 | [stash2Alist](stash2Alist/) | 基于 OpenResty 的 Stash 流媒体透明代理，支持 Alist / CloudDrive2 双模式 |
 | [stash-graphql-skill](stash-graphql-skill/) | Stash GraphQL API 参考文档，覆盖 Query/Mutation/Subscription 全量字段与常用操作示例 |
