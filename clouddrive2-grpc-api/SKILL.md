@@ -66,9 +66,9 @@ grpcurl -plaintext -import-path <PROTO_PATH> -proto <PROTO_FILE> \
 
 > 完整 226 个 RPC 的清单（含请求/响应类型、按指南分类）见 `references/methods.md`。
 
-## 📊 GetFileDetailProperties：目录统计（CD2 Web UI 同款）
+## GetFileDetailProperties：目录统计
 
-**用途**：获取目录的服务器端统计（文件总数/文件夹总数/总大小）——**就是 CD2 Web UI 里看目录详情用的那个方法**，无需自己递归遍历，服务器算好直接返回。
+**用途**：获取目录的服务器端统计（文件总数/文件夹总数/总大小），无需自己递归遍历，服务器算好直接返回。
 
 - 方法：`GetFileDetailProperties(FileRequest) → FileDetailProperties`
 - 请求：`FileRequest{path, forceRefresh?}`（path 为目录完整路径）
@@ -81,18 +81,18 @@ grpcurl -plaintext -import-path <PROTO_PATH> -proto <PROTO_FILE> \
   bool   isShared = 5;         // 是否分享
   string originalPath = 6;     // 原始路径
   ```
-- 实测（如 `/cloud/path`）：返回 `totalFileCount, totalFolderCount, totalSize, originalPath` 等字段——与 Web UI 一致
+- 示例（如 `/cloud/path`）：返回 `totalFileCount, totalFolderCount, totalSize, originalPath` 等字段
 - **适用场景**：清理辅助程序里要给每个目录标注"多大/多少文件"，用这个方法一次调用即可，别自己递归（尤其深层嵌套目录结构）
-- 与 `FindFileByPath` 区别：`FindFileByPath` 返回单文件/目录自身属性（id/时间/类型/哈希），**不含统计**；要统计必须 `GetFileDetailProperties`
+- `FindFileByPath` 返回单文件/目录自身属性（id/时间/类型/哈希），**不含统计**；要统计必须 `GetFileDetailProperties`
 
 > ⚠️ 注意：GetSubFiles/FindFileByPath 对目录返回的 `size` 字段恒为 0（目录本身大小），需用 GetFileDetailProperties 拿 totalSize。
 
-## 🔄 RestartService：重启 CD2 软件
+## RestartService：重启 CD2 软件
 
-等效于 CD2 Web 界面「重启软件」：**容器内进程重启，容器本身不重启**（StartedAt/RestartCount 不变）。用于测试依赖 CD2 挂载的下游容器自愈链路（autoheal 场景）。
+等效于 CD2 Web 界面「重启软件」：容器内进程重启，容器本身不重启（StartedAt/RestartCount 不变）。
 
 - 方法：`RestartService`，请求/响应都是 `google.protobuf.Empty`
-- **grpcio 调用**（推荐，避开 grpcurl 可能被网关防护误拦——含 "Restart" 字样的 grpcurl 命令会触发 lifecycle guard）：
+- **grpcio 调用**（推荐，grpcurl 含 "Restart" 字样的命令可能被网关防护误拦）：
 
 ```python
 import grpc, clouddrive_pb2_grpc
@@ -106,7 +106,7 @@ stub.RestartService(Empty(), metadata=[("authorization", "Bearer %s" % token)])
 - **验证重启已发生**：`docker logs <container> --timestamps --since 15m | grep -E "welcome|initialized"` 出现新时间戳（CD2 启动日志 `welcome to clouddrive ...` + `database initialized`）
 - CD2 容器软件重启由系统管理，容器本身的 `StartedAt`/`RestartCount` 不变，只能靠日志或挂载状态变化确认
 
-## ⚠️ MoveFile ConflictPolicy 枚举（易错点）
+## MoveFile ConflictPolicy 枚举
 
 ```protobuf
 enum ConflictPolicy { Overwrite = 0; Rename = 1; Skip = 2; }
@@ -142,9 +142,9 @@ for resp in stub.GetSubFiles(clouddrive_pb2.ListSubFileRequest(path=p, forceRefr
 **字段命名坑**：生成代码的 Python 字段名与 .proto 文件**逐字一致**——camelCase 保留（`isDirectory`、`fullPathName`、`theFilePaths`、`percendDone`、`infoHash`），个别 snake_case（`add_time`）。给业务层返回 dict 时保持旧 grpcurl JSON 键名（`id/name/fullPathName/size/isDirectory`），调用方零改动。
 `AddOfflineFileRequest.urls` 是**单个 string**（非 repeated），传一个磁力串即可。
 
-**与异步代码混用**：阻塞的 gRPC 调用在 asyncio 上下文用 `asyncio.to_thread` 包裹；channel 线程安全，可做模块级单例（cd2_client.get_cd2_client()）供 Flask/bot 线程共用。
+**与异步代码混用**：阻塞的 gRPC 调用在 asyncio 上下文用 `asyncio.to_thread` 包裹；channel 线程安全，可做模块级单例供 Flask/bot 线程共用。
 
-## 备份/同步任务（Backup API，v1.0.13 实测）
+## 备份/同步任务（Backup API）
 
 **用途**：CD2 的"同步"功能 = 备份任务（源目录→目标目录，可设扩展名过滤、完成后删源=移动语义）。可用于"网盘→本地存储"的文件搬运。
 
@@ -179,8 +179,8 @@ clouddrive_pb2.Backup(
 ### BackupStatus.Status 枚举
 `Idle=0` `WalkingThrough=1` `Error=2` `Disabled=3` `Scanned=4` `Finished=5` `Waiting=6`
 
-### ⚠️ 实测坑
-1. **extensions 过滤必须开 `isEnabled=True`！** FileBackupRule 有 4 个隐藏开关字段（proto 编号 100-103）：`isEnabled`(100, 默认 false=规则不生效！)、`isBlackList`(101, false=白名单/true=黑名单)、`applyToFolder`(102)、`applyToFile`(103)。**只设 extensions 不设 isEnabled=True → 规则静默失效，备份任务会处理源目录所有文件（含视频）**。正确写法：
+### 已知问题
+1. **extensions 过滤必须开 `isEnabled=True`**：FileBackupRule 有 4 个隐藏开关字段（proto 编号 100-103）：`isEnabled`(100, 默认 false=规则不生效)、`isBlackList`(101, false=白名单/true=黑名单)、`applyToFolder`(102)、`applyToFile`(103)。只设 extensions 不设 isEnabled=True → 规则静默失效，备份任务会处理源目录所有文件（含视频）。正确写法：
    ```python
    clouddrive_pb2.FileBackupRule(
        extensions="jpg,json,nfo,png",
@@ -189,19 +189,17 @@ clouddrive_pb2.Backup(
        applyToFile=True,
    )
    ```
-   （实测：第一次建任务漏了 isEnabled → 全量文件都建了传输任务，含视频文件；CancelAllUploadFiles + BackupSetEnabled(False) 清掉）
+2. **GetUploadFileList 默认返回空**：必须 `getAll=True` 才返回全量任务
+3. **传输任务方向**：网盘→本地的备份，在上传任务列表里 key/dest 显示为**目标路径**
+4. **取消后计数不立即归零**：`CancelAllUploadFiles` 异步；配合 `BackupSetEnabled(False)` 禁用任务后计数才归零
+5. **UploadFileInfo.Status 枚举**：WaitforPreprocessing=0 Preprocessing=1 Cancelled=2 Transfer=3 Pause=4 Finish=5 Skipped=6 Inqueue=7 Ignored=8 Error=9 FatalError=10
+6. **传输任务全量 RPC**：GetAllTasksCount / GetUploadFileList(getAll=True) / CancelAllUploadFiles / CancelUploadFiles(MultpleUploadFileKeyRequest{keys[]}) / PauseAllUploadFiles / ResumeAllUploadFiles
 
-### ✅ 成功案例：网盘非视频文件→本地存储
-- **场景**：将网盘某目录下的元数据文件（jpg/json/nfo/png）移动到本地存储，保持目录结构，视频/字幕文件留在网盘
+### 典型配置：网盘非视频文件→本地存储
 - **关键配置**：`FileBackupRule(extensions="jpg,json,nfo,png", isEnabled=True, isBlackList=False, applyToFile=True)` + `fileCompletionRule=DeleteSource`（移动语义）+ `fileReplaceRule=Skip` + `fileDeleteRule=Recycle`
 - **流程**：BackupAdd(dontStartScanAfterAdd=True) → BackupGetAll 核对配置 → BackupSetEnabled(True) → 若一定时间无任务生成，用 `BackupRestartWalkingThrough` 强制重新扫描 → 传输完成后 GetAllTasksCount 归零、BackupGetStatus=4(Scanned)
-- **验证**：GetUploadFileList(getAll=True) 看任务扩展名分布，确认只有 jpg/json/nfo/png；源目录非视频消失、视频保留；目标目录结构一致
+- **验证**：GetUploadFileList(getAll=True) 查看任务扩展名分布，确认只包含预期文件类型；源目录目标文件消失、保留文件仍在；目标目录结构一致
 - **善后**：任务可保持 enabled（幂等，目标已有文件 Skip 跳过）；`BackupRemove(StringValue(源路径))` 彻底删除
-2. **GetUploadFileList 默认返回空**：必须 `getAll=True` 才返回全量任务
-3. **传输任务方向视角**：网盘→本地的备份，在上传任务列表里 key/dest 显示为**目标路径**
-4. **取消后计数不立即归零**：`CancelAllUploadFiles` 异步；配合 `BackupSetEnabled(False)` 禁用任务后计数才归零
-5. **UploadFileInfo.Status**：WaitforPreprocessing=0 Preprocessing=1 Cancelled=2 Transfer=3 **Pause=4** Finish=5 Skipped=6 Inqueue=7 Ignored=8 Error=9 FatalError=10
-6. **传输任务全量 RPC**：GetAllTasksCount / GetUploadFileList(getAll=True) / CancelAllUploadFiles / CancelUploadFiles(MultpleUploadFileKeyRequest{keys[]}) / PauseAllUploadFiles / ResumeAllUploadFiles
 
 ## 批量 API 机会
 
@@ -212,14 +210,14 @@ clouddrive_pb2.Backup(
 
 `OFFLINE_DOWNLOADING` 下载中 / `OFFLINE_FINISHED`·`OFFLINE_COMPLETED` 完成 / `OFFLINE_ERROR` 错误 / `OFFLINE_PENDING`·`OFFLINE_WAITING` 等待 / `OFFLINE_PAUSED` 暂停 / `OFFLINE_CANCELLED` 取消。任务字段：`name` `status` `percendDone`(0-100) `size` `parentId` `infoHash` `fileId` `url`。
 
-**grpcio 枚举形态坑**：pb2 的 `status` 是 **int**（`0=OFFLINE_INIT 1=OFFLINE_DOWNLOADING 2=OFFLINE_FINISHED 3=OFFLINE_ERROR 4=OFFLINE_UNKNOWN`），而旧 grpcurl JSON 输出枚举**名字**。grpcio 客户端必须在序列化层做 int→名字映射（cd2_client._offline_to_dict），否则下游按名字判断（`is_finished = status in ("OFFLINE_FINISHED", ...)`）永远 False——完成状态不识别、`✅ 已完成` 与自动归类不触发。
+**grpcio 枚举形态差异**：pb2 的 `status` 是 **int**（`0=OFFLINE_INIT 1=OFFLINE_DOWNLOADING 2=OFFLINE_FINISHED 3=OFFLINE_ERROR 4=OFFLINE_UNKNOWN`），而旧 grpcurl JSON 输出枚举**名字**。grpcio 客户端必须在序列化层做 int→名字映射，否则下游按名字判断（`is_finished = status in ("OFFLINE_FINISHED", ...)`）永远 False。
 
 ## 路径约定
 
 - Stash 内路径：`/netdisk/CloudDrive/115/...`；CD2 虚拟路径：`/115/...`
 - 转换：去掉 `CD2_STRIP_PREFIX`（`/netdisk/CloudDrive`）前缀，其余保留
 
-## 🔑 fileHashes：文件 SHA1 哈希（查重利器）
+## fileHashes：文件 SHA1 哈希
 
 **用途**：CD2 直接返回文件的服务器端哈希，**无需下载文件算哈希**（CD2 上文件可能几十 GB，本地算 MD5/SHA1 不现实）。用于查重：两文件哈希相同即同一文件。
 
@@ -229,11 +227,11 @@ clouddrive_pb2.Backup(
   ```protobuf
   enum HashType { Unknown=0; Md5=1; Sha1=2; PikPakSha1=3; }
   ```
-- 实测（115 网盘文件）：`fileHashes = {2: '3E86FD72D686B12217165E126E35E1043AE1936B'}` → **key 2 = SHA1**（40 位 hex）
+- 例如：`fileHashes = {2: '<40位hex>'}` → **key 2 = SHA1**（40 位 hex）
 - 用法：`f.fileHashes.get(2)` 取 SHA1，`f.fileHashes.get(1)` 取 MD5（若有）
 - 查重场景：遍历目录收集每个文件 SHA1 → 按 SHA1 分组 → 相同即重复 → 按 size 排序看浪费空间。比下载算哈希高效几个数量级
 
-## ⬇️ downloadUrlPath：下载直链（可直接下载）
+## downloadUrlPath：下载直链
 
 **用途**：文件的下载直链（带 token），可直接 HTTP 下载，支持 Range 断点续传。
 
@@ -244,7 +242,7 @@ clouddrive_pb2.Backup(
   - `{HOST}` → gRPC 服务器地址（本机 `127.0.0.1:{CD2_GRPC_PORT}`）
   - `{PREVIEW}` → `false`（false=实际文件下载，true=预览）
   - 例：`http://127.0.0.1:{CD2_GRPC_PORT}/static/http/127.0.0.1:{CD2_GRPC_PORT}/false/115%2F...?token=...`
-- 实测：HEAD 返回 200，`Content-Length` 与 size 一致，`Content-Disposition: attachment; filename=...`；GET 带 Range 返回 206，数据正确
+- 响应特性：HEAD 返回 200，`Content-Length` 与 size 一致，`Content-Disposition: attachment; filename=...`；GET 带 Range 返回 206
 - **适用**：把 CD2 文件下载到本地处理、导出；支持断点续传适合大文件
 
 ## 向 CD2 云盘复制本地文件
@@ -265,7 +263,7 @@ clouddrive_pb2.Backup(
    stub.CreateFolder(pb2.CreateFolderRequest(parentPath='/cloud/parent', folderName='new_folder'), metadata=meta)
    ```
 
-3. **通过 CloudNAS FUSE 挂载点复制文件** — CD2 的 CloudNAS 挂载在宿主 `<local_volume>/netdisk/CloudDrive`，直接 `cp` 文件进去，CD2 会自动同步到云端：
+3. **通过 CloudNAS FUSE 挂载点复制文件** — CD2 的 CloudNAS 挂载在宿主机，直接 `cp` 文件进去，CD2 会自动同步到云端：
    ```bash
    cp /local/path/to/file.mkv \
      "{CLOUDNAS_MOUNT_PATH}/115/cloud/target/path/"
@@ -274,24 +272,24 @@ clouddrive_pb2.Backup(
 4. **验证** — 通过 CloudNAS 挂载点 `ls -lh` 确认文件可见，或通过 gRPC 再次 `GetSubFiles` 验证
 
 ### 注意事项
-- `cp` 到 CloudNAS 挂载点时，如果目标目录还没在 FUSE 中刷新，`cp` 会报 `No such file or directory`。先 `CreateFolder` 创建目录，等 FUSE 刷新（数秒）后再 `cp`
+- `cp` 到 CloudNAS 挂载点时，如果目标目录还没在 FUSE 中刷新，`cp` 会报 `No such file or directory`。先 `CreateFolder` 创建目录，等 FUSE 刷新后再 `cp`
 - 文件写入 CloudNAS 后，CD2 会自动检测并同步到云端，不需要手动触发上传
 - 大文件 cp 到 FUSE 挂载点可能较慢，耐心等待
 - 同步任务（Backup API）的 `destPath` 目录在 CD2 中可能不存在，需要通过 `CreateFolder` 手动创建
 
 ## Common Pitfalls
 
-1. **conflictPolicy 语义**：见上文枚举——别把 2 当覆盖用
+1. **conflictPolicy 语义**：0=覆盖, 1=重命名, 2=跳过——别把 2 当覆盖用
 2. **流式 JSON 解析**：grpcurl 输出多对象，逐条 `raw_decode`
-3. **Windows 路径（仅 grpcurl）**：`CD2_GRPCURL` 用原始字符串或双反斜杠（含空格路径）；主项目已迁 grpcio，此条只影响历史脚本
+3. **Windows 路径（仅 grpcurl）**：`CD2_GRPCURL` 用原始字符串或双反斜杠（含空格路径）
 4. **forceRefresh 开销**：`forceRefresh: true` 会强制云盘刷新，循环/递归遍历时尽量 false
-5. **子进程性能**：每次 grpcurl = 一个 subprocess，递归遍历大目录树会累积数千次调用 → 迁移 grpcio 持久 channel（见 `references/grpcio-migration.md`）
-6. **新客户端报错先对照旧实现**：同请求用旧 grpcurl 原样跑一遍，错误相同 = 服务端预存问题而非客户端回归。实例：`ListAllOfflineFiles` 报 `NOT_FOUND: cloud account not found`（`ListOfflineFilesByPath` 则 DEADLINE_EXCEEDED），旧 grpcurl 同样报——是 CD2 云账户状态问题，需在 CD2 界面排查
+5. **子进程性能**：每次 grpcurl = 一个 subprocess，递归遍历大目录树会累积数千次调用，建议迁移 grpcio 持久 channel
+6. **新客户端报错先对照旧实现**：同请求用旧 grpcurl 原样跑一遍，错误相同 = 服务端预存问题而非客户端回归
 7. **gRPC 错误信息处理（`grpc.RpcError`）**：
    - 要拿干净业务信息用 `e.details()`（如 115 `code: 10008, message: 任务已存在，请勿输入重复的链接地址`），不要直接 `str(e)`——`_InactiveRpcError` repr 超长且含尖括号
-   - 若必须截断错误文本，长度要够（≥300）。实测 `str(e)[:150]` 会把"任务已存在"（repr 第 ~165 字符处）切掉，导致下游按文本识别重复任务（is_dup）误判成"添加失败"
+   - 若必须截断错误文本，长度要够（≥300）。`str(e)[:150]` 会把"任务已存在"（repr 第 ~165 字符处）切掉，导致下游按文本识别重复任务（is_dup）误判成"添加失败"
    - 该 repr 嵌入 Telegram HTML 消息会炸解析（`Can't parse entities: unsupported start tag`）——第三方来源字符串（错误信息、磁力名称）进 HTML 消息前先 `html.escape`
-   - 实例：重复添加磁力 → AddOfflineFiles 返回 INTERNAL + `code 10008 任务已存在`，经上述两坑变成 bot 崩溃；修复 = `_call` 里 `e.details()` 提取 + 截断放宽 + 转义
+   - 例：重复添加磁力 → AddOfflineFiles 返回 INTERNAL + `code 10008 任务已存在`
 
 ## References
 
