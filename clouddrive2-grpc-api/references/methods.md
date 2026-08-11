@@ -1,6 +1,6 @@
 # CloudDrive2 gRPC 完整方法清单（v1.0.13）
 
-> 来源：官方 `https://www.clouddrive2.com/api/clouddrive.proto`（2026-07-31 更新，96,056 字节），`service CloudDriveFileSrv` 共 **226 个活跃 RPC**（proto 中注释掉的 `APILoginPikPak` 不计）。
+> 来源：官方 `https://www.clouddrive2.com/api/clouddrive.proto`（官网最新版），`service CloudDriveFileSrv` 共 **226 个活跃 RPC**（proto 中注释掉的 `APILoginPikPak` 不计）。
 > 分类按官方《CloudDrive2 gRPC API 开发者指南》章节；公共方法以官方指南「公共方法(无需授权)」列表为准（8 个）。
 > 标 `stream` 的为服务端流式方法（响应多条）。除公共方法外均需 `Authorization: Bearer <token>` 元数据头。
 

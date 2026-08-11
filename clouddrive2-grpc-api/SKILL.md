@@ -15,7 +15,7 @@ CD2 服务器所在地址为 `{CD2_HOST}`，gRPC 端口为 `{CD2_GRPC_PORT}`。�
 ## 资源位置
 
 - **官方中文 API 指南**：官方文档站（clouddrive2.com 文档/API 页），或下载 proto 后 `protoc --decode` 查看
-- **proto 官方下载**：`https://www.clouddrive2.com/api/clouddrive.proto`（当前 **v1.0.13**，96,056 字节，官网 2026-07-31 更新）
+- **proto 官方下载**：`https://www.clouddrive2.com/api/clouddrive.proto`（当前 **v1.0.13**，96,056 字节，官网最新版）
 - **完整方法清单**：本文内 `references/methods.md` — 官方 proto 解析出的全部 **226 个活跃 RPC**，按指南章节分类，含请求/响应类型（可离线查方法是否存在，无需下载 proto）
 - **grpcurl**：已废弃（推荐使用 grpcio）；如需对照诊断，可在容器内 `apt install grpcurl` 或用 Python grpcio（见下）
 - **⭐ 最快捷路径**：使用已配置好 grpcio + proto 的容器环境：
@@ -66,7 +66,7 @@ grpcurl -plaintext -import-path <PROTO_PATH> -proto <PROTO_FILE> \
 
 > 完整 226 个 RPC 的清单（含请求/响应类型、按指南分类）见 `references/methods.md`。
 
-## 📊 GetFileDetailProperties：目录统计（2026-08-10 实测，CD2 UI 同款）
+## 📊 GetFileDetailProperties：目录统计（CD2 Web UI 同款）
 
 **用途**：获取目录的服务器端统计（文件总数/文件夹总数/总大小）——**就是 CD2 Web UI 里看目录详情用的那个方法**，无需自己递归遍历，服务器算好直接返回。
 
@@ -81,13 +81,13 @@ grpcurl -plaintext -import-path <PROTO_PATH> -proto <PROTO_FILE> \
   bool   isShared = 5;         // 是否分享
   string originalPath = 6;     // 原始路径
   ```
-- 实测（`/115/动画/日本`）：`totalFileCount=3444, totalFolderCount=395, totalSize=288578852618(=268.8GB), originalPath=/115/动画/日本`——与 UI 界面完全一致
-- **适用场景**：清理辅助程序里要给每个目录标注"多大/多少文件"，用这个方法一次调用即可，别自己递归（尤其深层目录结构如 动画/国产/系列/片）
+- 实测（如 `/cloud/path`）：返回 `totalFileCount, totalFolderCount, totalSize, originalPath` 等字段——与 Web UI 一致
+- **适用场景**：清理辅助程序里要给每个目录标注"多大/多少文件"，用这个方法一次调用即可，别自己递归（尤其深层嵌套目录结构）
 - 与 `FindFileByPath` 区别：`FindFileByPath` 返回单文件/目录自身属性（id/时间/类型/哈希），**不含统计**；要统计必须 `GetFileDetailProperties`
 
 > ⚠️ 注意：GetSubFiles/FindFileByPath 对目录返回的 `size` 字段恒为 0（目录本身大小），需用 GetFileDetailProperties 拿 totalSize。
 
-## 🔄 RestartService：重启 CD2 软件（2026-08-06 实测）
+## 🔄 RestartService：重启 CD2 软件
 
 等效于 CD2 Web 界面「重启软件」：**容器内进程重启，容器本身不重启**（StartedAt/RestartCount 不变）。用于测试依赖 CD2 挂载的下游容器自愈链路（autoheal 场景）。
 
@@ -103,8 +103,8 @@ stub.RestartService(Empty(), metadata=[("authorization", "Bearer %s" % token)])
 ```
 
 - **成功信号是 gRPC 错误**：返回 `UNAVAILABLE: Stream removed (End of TCP stream)` 即正常——CD2 收到命令立刻断开连接开始重启，EOF 不是失败
-- **验证重启已发生**：`docker logs clouddrive2 --timestamps --since 15m | grep -E "welcome|initialized"` 出现新时间戳（CD2 启动日志 `welcome to clouddrive v1.0.13 ...` + `database initialized`）
-- CD2 容器 PID1 是 systemd（`/sbin/init`），软件重启由容器内 systemd 管理 → 容器 `StartedAt`/`RestartCount` 都不变，只能靠日志或挂载 mount id 变化确认
+- **验证重启已发生**：`docker logs <container> --timestamps --since 15m | grep -E "welcome|initialized"` 出现新时间戳（CD2 启动日志 `welcome to clouddrive ...` + `database initialized`）
+- CD2 容器软件重启由系统管理，容器本身的 `StartedAt`/`RestartCount` 不变，只能靠日志或挂载状态变化确认
 
 ## ⚠️ MoveFile ConflictPolicy 枚举（易错点）
 
@@ -146,7 +146,7 @@ for resp in stub.GetSubFiles(clouddrive_pb2.ListSubFileRequest(path=p, forceRefr
 
 ## 备份/同步任务（Backup API，v1.0.13 实测）
 
-**用途**：CD2 的"同步"功能 = 备份任务（源目录→目标目录，可设扩展名过滤、完成后删源=移动语义）。可用于"网盘→本地 mergerfs write"的文件搬运。
+**用途**：CD2 的"同步"功能 = 备份任务（源目录→目标目录，可设扩展名过滤、完成后删源=移动语义）。可用于"网盘→本地存储"的文件搬运。
 
 ### RPC 清单
 | 方法 | 请求 | 说明 |
@@ -164,7 +164,7 @@ for resp in stub.GetSubFiles(clouddrive_pb2.ListSubFileRequest(path=p, forceRefr
 ```python
 clouddrive_pb2.Backup(
     sourcePath="/115/xxx",
-    destinations=[clouddrive_pb2.BackupDestination(destinationPath="/mnt/SSD_1/...", isEnabled=True)],
+    destinations=[clouddrive_pb2.BackupDestination(destinationPath="/local/path/...", isEnabled=True)],
     fileBackupRules=[clouddrive_pb2.FileBackupRule(extensions="jpg,json,nfo,png")],  # oneof: extensions/fileNames/regex/minSize
     fileReplaceRule=clouddrive_pb2.FileReplaceRule.Skip,        # 0=Skip 1=Overwrite 2=KeepHistoryVersion
     fileDeleteRule=clouddrive_pb2.FileDeleteRule.Recycle,       # 0=Delete 1=Recycle 2=Keep 3=MoveToVersionHistory
@@ -179,7 +179,7 @@ clouddrive_pb2.Backup(
 ### BackupStatus.Status 枚举
 `Idle=0` `WalkingThrough=1` `Error=2` `Disabled=3` `Scanned=4` `Finished=5` `Waiting=6`
 
-### ⚠️ 实测坑（2026-08-06）
+### ⚠️ 实测坑
 1. **extensions 过滤必须开 `isEnabled=True`！** FileBackupRule 有 4 个隐藏开关字段（proto 编号 100-103）：`isEnabled`(100, 默认 false=规则不生效！)、`isBlackList`(101, false=白名单/true=黑名单)、`applyToFolder`(102)、`applyToFile`(103)。**只设 extensions 不设 isEnabled=True → 规则静默失效，备份任务会处理源目录所有文件（含视频）**。正确写法：
    ```python
    clouddrive_pb2.FileBackupRule(
@@ -189,16 +189,16 @@ clouddrive_pb2.Backup(
        applyToFile=True,
    )
    ```
-   （2026-08-06 实测：第一次建任务漏了 isEnabled → 1281 个文件全部建了传输任务，含 mkv/mp4；CancelAllUploadFiles + BackupSetEnabled(False) 清掉）
+   （实测：第一次建任务漏了 isEnabled → 全量文件都建了传输任务，含视频文件；CancelAllUploadFiles + BackupSetEnabled(False) 清掉）
 
-### ✅ 成功案例（2026-08-06 实测通过）：网盘非视频文件→本地 mergerfs write
-- **场景**：`/115/新式媒体库` 的 jpg/json/nfo/png（210 个）移动到 `/mnt/SSD_1/tools/mergerfs/write/CloudDrive/115/新式媒体库`（= 宿主 `{DATA_VOLUME}/tools/mergerfs/write/...`），保持目录结构，视频/字幕留网盘
+### ✅ 成功案例：网盘非视频文件→本地存储
+- **场景**：将网盘某目录下的元数据文件（jpg/json/nfo/png）移动到本地存储，保持目录结构，视频/字幕文件留在网盘
 - **关键配置**：`FileBackupRule(extensions="jpg,json,nfo,png", isEnabled=True, isBlackList=False, applyToFile=True)` + `fileCompletionRule=DeleteSource`（移动语义）+ `fileReplaceRule=Skip` + `fileDeleteRule=Recycle`
-- **流程**：BackupAdd(dontStartScanAfterAdd=True) → BackupGetAll 核对配置 → BackupSetEnabled(True) → 若 15-45s 无任务生成，用 `BackupRestartWalkingThrough` 强制重新扫描 → 传输完成后 GetAllTasksCount 归零、BackupGetStatus=4(Scanned)
+- **流程**：BackupAdd(dontStartScanAfterAdd=True) → BackupGetAll 核对配置 → BackupSetEnabled(True) → 若一定时间无任务生成，用 `BackupRestartWalkingThrough` 强制重新扫描 → 传输完成后 GetAllTasksCount 归零、BackupGetStatus=4(Scanned)
 - **验证**：GetUploadFileList(getAll=True) 看任务扩展名分布，确认只有 jpg/json/nfo/png；源目录非视频消失、视频保留；目标目录结构一致
 - **善后**：任务可保持 enabled（幂等，目标已有文件 Skip 跳过）；`BackupRemove(StringValue(源路径))` 彻底删除
 2. **GetUploadFileList 默认返回空**：必须 `getAll=True` 才返回全量任务
-3. **传输任务方向视角**：网盘→本地的备份，在上传任务列表里 key/dest 显示为**目标路径**（/mnt/SSD_1/...）
+3. **传输任务方向视角**：网盘→本地的备份，在上传任务列表里 key/dest 显示为**目标路径**
 4. **取消后计数不立即归零**：`CancelAllUploadFiles` 异步；配合 `BackupSetEnabled(False)` 禁用任务后计数才归零
 5. **UploadFileInfo.Status**：WaitforPreprocessing=0 Preprocessing=1 Cancelled=2 Transfer=3 **Pause=4** Finish=5 Skipped=6 Inqueue=7 Ignored=8 Error=9 FatalError=10
 6. **传输任务全量 RPC**：GetAllTasksCount / GetUploadFileList(getAll=True) / CancelAllUploadFiles / CancelUploadFiles(MultpleUploadFileKeyRequest{keys[]}) / PauseAllUploadFiles / ResumeAllUploadFiles
@@ -212,14 +212,14 @@ clouddrive_pb2.Backup(
 
 `OFFLINE_DOWNLOADING` 下载中 / `OFFLINE_FINISHED`·`OFFLINE_COMPLETED` 完成 / `OFFLINE_ERROR` 错误 / `OFFLINE_PENDING`·`OFFLINE_WAITING` 等待 / `OFFLINE_PAUSED` 暂停 / `OFFLINE_CANCELLED` 取消。任务字段：`name` `status` `percendDone`(0-100) `size` `parentId` `infoHash` `fileId` `url`。
 
-**grpcio 枚举形态坑**：pb2 的 `status` 是 **int**（`0=OFFLINE_INIT 1=OFFLINE_DOWNLOADING 2=OFFLINE_FINISHED 3=OFFLINE_ERROR 4=OFFLINE_UNKNOWN`），而旧 grpcurl JSON 输出枚举**名字**。grpcio 客户端必须在序列化层做 int→名字映射（cd2_client._offline_to_dict），否则下游按名字判断（`is_finished = status in ("OFFLINE_FINISHED", ...)`）永远 False——完成状态不识别、`✅ 已完成` 与自动归类不触发（2026-08 实测踩坑）。
+**grpcio 枚举形态坑**：pb2 的 `status` 是 **int**（`0=OFFLINE_INIT 1=OFFLINE_DOWNLOADING 2=OFFLINE_FINISHED 3=OFFLINE_ERROR 4=OFFLINE_UNKNOWN`），而旧 grpcurl JSON 输出枚举**名字**。grpcio 客户端必须在序列化层做 int→名字映射（cd2_client._offline_to_dict），否则下游按名字判断（`is_finished = status in ("OFFLINE_FINISHED", ...)`）永远 False——完成状态不识别、`✅ 已完成` 与自动归类不触发。
 
 ## 路径约定
 
 - Stash 内路径：`/netdisk/CloudDrive/115/...`；CD2 虚拟路径：`/115/...`
 - 转换：去掉 `CD2_STRIP_PREFIX`（`/netdisk/CloudDrive`）前缀，其余保留
 
-## 🔑 fileHashes：文件 SHA1 哈希（2026-08-10 实测，查重利器）
+## 🔑 fileHashes：文件 SHA1 哈希（查重利器）
 
 **用途**：CD2 直接返回文件的服务器端哈希，**无需下载文件算哈希**（CD2 上文件可能几十 GB，本地算 MD5/SHA1 不现实）。用于查重：两文件哈希相同即同一文件。
 
@@ -233,7 +233,7 @@ clouddrive_pb2.Backup(
 - 用法：`f.fileHashes.get(2)` 取 SHA1，`f.fileHashes.get(1)` 取 MD5（若有）
 - 查重场景：遍历目录收集每个文件 SHA1 → 按 SHA1 分组 → 相同即重复 → 按 size 排序看浪费空间。比下载算哈希高效几个数量级
 
-## ⬇️ downloadUrlPath：下载直链（2026-08-10 实测，可直接下载）
+## ⬇️ downloadUrlPath：下载直链（可直接下载）
 
 **用途**：文件的下载直链（带 token），可直接 HTTP 下载，支持 Range 断点续传。
 
@@ -244,31 +244,31 @@ clouddrive_pb2.Backup(
   - `{HOST}` → gRPC 服务器地址（本机 `127.0.0.1:{CD2_GRPC_PORT}`）
   - `{PREVIEW}` → `false`（false=实际文件下载，true=预览）
   - 例：`http://127.0.0.1:{CD2_GRPC_PORT}/static/http/127.0.0.1:{CD2_GRPC_PORT}/false/115%2F...?token=...`
-- 实测（115 文件 31MB xapk）：HEAD 200，`Content-Length` 与 size 一致，`Content-Disposition: attachment; filename=...`；GET 带 Range 返回 206，前 16 字节 `504b0304`(ZIP头) 数据正确
+- 实测：HEAD 返回 200，`Content-Length` 与 size 一致，`Content-Disposition: attachment; filename=...`；GET 带 Range 返回 206，数据正确
 - **适用**：把 CD2 文件下载到本地处理、导出；支持断点续传适合大文件
 
-## 向 CD2 云盘复制本地文件（2026-08-08 实测流程）
+## 向 CD2 云盘复制本地文件
 
 ### 场景
-本地文件（如追番视频）需要复制到 115 网盘对应目录，供 Emby 扫描入库。
+本地文件需要复制到网盘对应目录，供媒体服务器扫描入库。
 
 ### 流程
 1. **确认目标目录是否存在** — 用 `GetSubFiles` 检查 CD2 虚拟路径：
    ```python
-   for resp in stub.GetSubFiles(pb2.ListSubFileRequest(path='/115/xxx/待刮削/追番', forceRefresh=False), metadata=meta):
+   for resp in stub.GetSubFiles(pb2.ListSubFileRequest(path='/cloud/path/to/target', forceRefresh=False), metadata=meta):
        files.extend(resp.subFiles)
    ```
-   → 如果报 `NOT_FOUND: not found "追番" under "..."`，说明目录不存在
+   → 如果报 `NOT_FOUND`，说明目录不存在
 
 2. **创建缺失目录** — 用 `CreateFolder`：
    ```python
-   stub.CreateFolder(pb2.CreateFolderRequest(parentPath='/115/xxx/待刮削', folderName='追番'), metadata=meta)
+   stub.CreateFolder(pb2.CreateFolderRequest(parentPath='/cloud/parent', folderName='new_folder'), metadata=meta)
    ```
 
-3. **通过 CloudNAS FUSE 挂载点复制文件** — CD2 的 CloudNAS 挂载在宿主 `{DATA_VOLUME}/netdisk/CloudDrive`，直接 `cp` 文件进去，CD2 会自动同步到云端：
+3. **通过 CloudNAS FUSE 挂载点复制文件** — CD2 的 CloudNAS 挂载在宿主 `<local_volume>/netdisk/CloudDrive`，直接 `cp` 文件进去，CD2 会自动同步到云端：
    ```bash
-   cp {DATA_VOLUME_5}/HDD_7.28T_01/追番/xxx.mkv \
-     "{DATA_VOLUME}/netdisk/CloudDrive/115/xxx/待刮削/追番/xxx/"
+   cp /local/path/to/file.mkv \
+     "{CLOUDNAS_MOUNT_PATH}/115/cloud/target/path/"
    ```
 
 4. **验证** — 通过 CloudNAS 挂载点 `ls -lh` 确认文件可见，或通过 gRPC 再次 `GetSubFiles` 验证
@@ -285,22 +285,22 @@ clouddrive_pb2.Backup(
 2. **流式 JSON 解析**：grpcurl 输出多对象，逐条 `raw_decode`
 3. **Windows 路径（仅 grpcurl）**：`CD2_GRPCURL` 用原始字符串或双反斜杠（含空格路径）；主项目已迁 grpcio，此条只影响历史脚本
 4. **forceRefresh 开销**：`forceRefresh: true` 会强制云盘刷新，循环/递归遍历时尽量 false
-5. **子进程性能**：每次 grpcurl = 一个 subprocess（Windows ~100ms+），递归遍历大目录树会累积数千次调用 → 迁移 grpcio 持久 channel（见 `references/grpcio-migration.md`）
+5. **子进程性能**：每次 grpcurl = 一个 subprocess，递归遍历大目录树会累积数千次调用 → 迁移 grpcio 持久 channel（见 `references/grpcio-migration.md`）
 6. **新客户端报错先对照旧实现**：同请求用旧 grpcurl 原样跑一遍，错误相同 = 服务端预存问题而非客户端回归。实例：`ListAllOfflineFiles` 报 `NOT_FOUND: cloud account not found`（`ListOfflineFilesByPath` 则 DEADLINE_EXCEEDED），旧 grpcurl 同样报——是 CD2 云账户状态问题，需在 CD2 界面排查
 7. **gRPC 错误信息处理（`grpc.RpcError`）**：
    - 要拿干净业务信息用 `e.details()`（如 115 `code: 10008, message: 任务已存在，请勿输入重复的链接地址`），不要直接 `str(e)`——`_InactiveRpcError` repr 超长且含尖括号
    - 若必须截断错误文本，长度要够（≥300）。实测 `str(e)[:150]` 会把"任务已存在"（repr 第 ~165 字符处）切掉，导致下游按文本识别重复任务（is_dup）误判成"添加失败"
    - 该 repr 嵌入 Telegram HTML 消息会炸解析（`Can't parse entities: unsupported start tag`）——第三方来源字符串（错误信息、磁力名称）进 HTML 消息前先 `html.escape`
-   - 实例（2026-08）：重复添加磁力 → AddOfflineFiles 返回 INTERNAL + `code 10008 任务已存在`，经上述两坑变成 bot 崩溃；修复 = `_call` 里 `e.details()` 提取 + 截断放宽 + 转义
+   - 实例：重复添加磁力 → AddOfflineFiles 返回 INTERNAL + `code 10008 任务已存在`，经上述两坑变成 bot 崩溃；修复 = `_call` 里 `e.details()` 提取 + 截断放宽 + 转义
 
 ## 项目协作约定（参考）
 
-- **改前备份（强制）**：用户不用 git（从不提交）。任何代码修改前先把整个项目目录复制到 `{PROJECT_NAME}\backups\<项目名>-<说明>-<YYYYMMDD>\`（含 .git 全量快照），避免改坏无法恢复。
+- **改前备份（强制）**：用户不用 git（从不提交）。任何代码修改前先把整个项目目录复制到 `<project>\backups\<项目名>-<说明>-<YYYYMMDD>\`（含 .git 全量快照），避免改坏无法恢复。
 - **功能开发先设计**：新功能先出设计文档（现状/方案/字段映射/改动清单/边界/验证），用户确认后再动手，不要直接改。
-- **验证用运行环境 python**：~~`env -u PYTHONPATH {PYTHON_EXE_PATH}`~~（Windows 时代，2026-08-07 迁移后失效）→ 改 NAS 容器 `docker exec {STASH_CONTAINER} python <脚本>`。验证脚本放 NAS 临时目录（`verify-*.py`），跑完即删；项目无正式测试套件，明确标注 ad-hoc 验证。覆盖：改动核心行为 + 旧行为回归 + 故障注入（API 不可达/重复任务）。
+- **验证**：`docker exec <container> python <script>` 运行。验证脚本放临时目录，跑完即删。覆盖：改动核心行为 + 旧行为回归 + 故障注入（API 不可达/重复任务）。
 
 ## References
 
 - `references/methods.md` — **完整 RPC 方法清单（v1.0.13，226 个）**：从官方 proto 解析，按官方指南分类，含请求/响应类型、流式标记、公共方法列表
-- `references/grpcio-migration.md` — grpcurl → grpcio 迁移（**已实施 2026-08**，含实测验证结果）
+- `references/grpcio-migration.md` — grpcurl → grpcio 迁移（**已实施**，含实测验证结果）
 - `references/magnet-search-pipeline.md` — 磁力搜索多来源流水线：统一磁力 dict、AVDB 聚合 API（`code==0` 成功判定、字段映射）、btih 去重/来源置顶排序、封面兜底、无 Telegram 环境的 mock 验证模式

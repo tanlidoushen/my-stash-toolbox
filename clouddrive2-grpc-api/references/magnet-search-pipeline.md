@@ -1,6 +1,6 @@
-# 磁力搜索流水线（{STASH_CONTAINER}，多来源 → CD2 离线下载）
+# 磁力搜索流水线（多来源 → CD2 离线下载)
 
-2026-08 实测记录：`/code 番号` 磁力搜索 = JavDB 影片/磁力 + AVDB 聚合磁力源，合并后走统一展示/下载/监控链路。
+`/code 番号` 磁力搜索 = JavDB 影片/磁力 + AVDB 聚合磁力源，合并后走统一展示/下载/监控链路。
 
 ## 统一磁力 dict（下游展示/下载不区分来源）
 
@@ -52,4 +52,4 @@ AVDB_API_TIMEOUT = int(os.environ.get("AVDB_API_TIMEOUT", "10"))
 - `FakeBot`：`send_message`（返回带 `message_id` 的对象）、`edit_message_reply_markup`、`delete_message`
 - handler 内 `from stash.cd2_offline import add_offline_download` 是**调用时导入** → monkeypatch `stash.cd2_offline.add_offline_download` 即可拦截
 - 测完手动 cancel `_monitor_tasks` 中新建任务（跨用例隔离）
-- 运行：NAS 上 `docker exec {STASH_CONTAINER} python <脚本>`（容器 python:3.12-slim = 生产运行环境；Windows 时代 `env -u PYTHONPATH {PYTHON_EXE_PATH}` 已随 2026-08-07 迁移失效）
+- 运行：NAS 上 `docker exec <container> python <脚本>`（容器 python:3.12-slim = 生产运行环境）
