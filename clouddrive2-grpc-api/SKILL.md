@@ -293,14 +293,6 @@ clouddrive_pb2.Backup(
    - 该 repr 嵌入 Telegram HTML 消息会炸解析（`Can't parse entities: unsupported start tag`）——第三方来源字符串（错误信息、磁力名称）进 HTML 消息前先 `html.escape`
    - 实例：重复添加磁力 → AddOfflineFiles 返回 INTERNAL + `code 10008 任务已存在`，经上述两坑变成 bot 崩溃；修复 = `_call` 里 `e.details()` 提取 + 截断放宽 + 转义
 
-## 项目协作约定（参考）
-
-- **改前备份（强制）**：用户不用 git（从不提交）。任何代码修改前先把整个项目目录复制到 `<project>\backups\<项目名>-<说明>-<YYYYMMDD>\`（含 .git 全量快照），避免改坏无法恢复。
-- **功能开发先设计**：新功能先出设计文档（现状/方案/字段映射/改动清单/边界/验证），用户确认后再动手，不要直接改。
-- **验证**：`docker exec <container> python <script>` 运行。验证脚本放临时目录，跑完即删。覆盖：改动核心行为 + 旧行为回归 + 故障注入（API 不可达/重复任务）。
-
 ## References
 
 - `references/methods.md` — **完整 RPC 方法清单（v1.0.13，226 个）**：从官方 proto 解析，按官方指南分类，含请求/响应类型、流式标记、公共方法列表
-- `references/grpcio-migration.md` — grpcurl → grpcio 迁移（**已实施**，含实测验证结果）
-- `references/magnet-search-pipeline.md` — 磁力搜索多来源流水线：统一磁力 dict、AVDB 聚合 API（`code==0` 成功判定、字段映射）、btih 去重/来源置顶排序、封面兜底、无 Telegram 环境的 mock 验证模式
