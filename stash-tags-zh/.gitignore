@@ -1,0 +1,6 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# 临时分析计划（可再生成）
+import_plan.json
