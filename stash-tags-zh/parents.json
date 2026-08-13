@@ -11492,56 +11492,5 @@
         "name": "重度纹身"
       }
     ]
-  },
-  {
-    "id": "2165",
-    "name": "未分类标签",
-    "aliases": [
-      "Unsorted Tags"
-    ],
-    "description": "",
-    "children_count": 3,
-    "children": [
-      {
-        "id": "2153",
-        "name": "写真偶像影像"
-      },
-      {
-        "id": "2093",
-        "name": "性感"
-      },
-      {
-        "id": "1832",
-        "name": "样片视频"
-      }
-    ]
-  },
-  {
-    "id": "732",
-    "name": "丢失或删除",
-    "aliases": [
-      "Deleted",
-      "Missing",
-      "Missing or Removed",
-      "Missing/Removed",
-      "N/A",
-      "Nuked",
-      "Purged",
-      "Removed",
-      "Unavailable",
-      "不可用",
-      "丢失",
-      "已删除",
-      "已移除",
-      "无"
-    ],
-    "description": "该场景已无法从原始制作方获取，或原始制作方已不存在。",
-    "children_count": 1,
-    "children": [
-      {
-        "id": "3987",
-        "name": "未验证演员"
-      }
-    ]
   }
 ]

@@ -99,11 +99,15 @@ def tag_update(url, tag_id, name=None, aliases=None, description=None, parent_id
 def load_local():
     """读取本地 parents.json / children.json，返回 {中文名: {data}} 全量"""
     tags = {}
+    parent_count = 0
     for path in ("parents.json", "children.json"):
         with open(path, encoding="utf-8") as f:
-            for t in json.load(f):
-                tags[t["name"]] = t
-    return tags
+            data = json.load(f)
+        if path == "parents.json":
+            parent_count = len(data)
+        for t in data:
+            tags[t["name"]] = t
+    return tags, parent_count
 
 
 def build_remote_index(remote_tags):
@@ -181,8 +185,8 @@ def main():
             print("已取消")
             sys.exit(1)
 
-    local = load_local()
-    print(f"本地标签: {len(local)} 个（父 30 + 子 2789）")
+    local, parent_count = load_local()
+    print(f"本地标签: {len(local)} 个（父 {parent_count} + 子 {len(local) - parent_count}）")
 
     remote_tags = fetch_remote_tags(args.url)
     print(f"对方标签: {len(remote_tags)} 个")
