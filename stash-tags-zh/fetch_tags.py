@@ -64,30 +64,28 @@ def main():
     cn_tags = [t for t in tags if is_cn(t["name"])]
     print(f"中文标签: {len(cn_tags)}")
 
-    # 有下级标签的中文上级标签
+    # 有下级标签的中文上级标签（不含本地 id，便于分享）
     parents = [
         {
-            "id": t["id"],
             "name": t["name"],
             "aliases": t.get("aliases") or [],
             "description": t.get("description") or "",
             "children_count": len(t["children"]),
-            "children": [{"id": c["id"], "name": c["name"]} for c in t["children"]],
+            "children": [{"name": c["name"]} for c in t["children"]],
         }
         for t in cn_tags
         if t["children"]
     ]
     parents.sort(key=lambda x: -x["children_count"])
 
-    # 有上级标签的中文下级标签
+    # 有上级标签的中文下级标签（不含本地 id，便于分享）
     children = [
         {
-            "id": t["id"],
             "name": t["name"],
             "aliases": t.get("aliases") or [],
             "description": t.get("description") or "",
             "parents_count": len(t["parents"]),
-            "parents": [{"id": p["id"], "name": p["name"]} for p in t["parents"]],
+            "parents": [{"name": p["name"]} for p in t["parents"]],
         }
         for t in cn_tags
         if t["parents"]
