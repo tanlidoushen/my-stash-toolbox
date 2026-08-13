@@ -5,8 +5,8 @@
 
 ---
 
-> [Stash 小工具集](https://github.com/tanlidoushen/my-stash-toolbox/tree/main) 系列之一：中文汉化标签层级分析 + 汉化补丁导入工具。
-> 从 Stash GraphQL 拉取中文标签体系（父/子层级 + 描述），并可将整套中文标签作为汉化补丁导入到英文标签的 Stash 实例。
+> 中文汉化标签层级分析 + 汉化补丁导入工具。
+> 标签由 AI 翻译生成，仅供学习交流参考。
 
 > ⚠️ **破坏性操作警告**
 > `import_tags.py --apply` 会**覆盖目标 Stash 的标签属性（name/aliases/description）并修改父子层级，不可逆**。
@@ -88,8 +88,3 @@ python3 import_tags.py --url http://<stash>:9999/graphql --apply
 | 臀部 | 8 |
 | 身高 | 7 |
 | 纹身 | 6 |
-
----
-
-> 本工具大部分使用 Vibe Coding 方式开发。
-> 遵循 [MIT License](https://github.com/tanlidoushen/my-stash-toolbox/blob/main/LICENSE) 开源协议。
