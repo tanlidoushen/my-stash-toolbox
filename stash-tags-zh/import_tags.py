@@ -237,9 +237,11 @@ def main():
                 (remote.get("aliases") or []) +
                 (t.get("aliases") or [])
             ))
+            # 本地 description 为空 → 保留对方原描述（不覆盖为空）
+            new_description = t.get("description") or remote.get("description") or ""
             tag_update(args.url, remote["id"],
                        name=name, aliases=new_aliases,
-                       description=t.get("description") or "")
+                       description=new_description)
             id_map[name] = remote["id"]
             print(f"🈶 覆盖: {remote['name']} → {name}  [{reason}]")
 

@@ -44,13 +44,15 @@ python3 import_tags.py --url http://<stash>:9999/graphql --apply
 
 ## 导入（汉化补丁）匹配逻辑
 
-| 对方情况 | 动作 |
-|----------|------|
-| 同名且 aliases/description 完全一致 | 跳过 |
-| 同名但别名/描述不一致 | 覆盖（补齐 aliases/description） |
-| 我的英文别名 ∈ 对方 name/aliases | 覆盖（name→中文，英文原名并入 aliases） |
-| 我的中文名 ∈ 对方 aliases（半汉化） | 覆盖（name→中文） |
-| 无匹配 | 新建 |
+| 对方情况 | 动作 | description 处理 |
+|----------|------|------------------|
+| 同名且 aliases/description 完全一致 | 跳过 | 不动 |
+| 同名但别名/描述不一致 | 覆盖（补齐 aliases/description） | 本地有则覆盖；本地为空则**保留对方原描述** |
+| 我的英文别名 ∈ 对方 name/aliases | 覆盖（name→中文，英文原名并入 aliases） | 同上 |
+| 我的中文名 ∈ 对方 aliases（半汉化） | 覆盖（name→中文） | 同上 |
+| 无匹配 | 新建 | 写入本地描述（为空则留空） |
+
+**description 覆盖规则**：进入「覆盖」的标签，本地描述非空 → 用中文描述覆盖；本地描述为空 → **保留对方原描述**，不会清空。
 
 执行顺序：覆盖/新建所有标签 → 按 children.json 挂父子层级。
 
