@@ -527,17 +527,19 @@ const SceneMatch = {
     },
 
     _addCardButton(col, r) {
-        // 优先插入演员统计行（"演员 (N)  ▶  ♀️1 ♂️1 ⭐1"，space-between 中间），只留图标
+        // ① 优先插入指纹条中间（"指纹: 50  ▶  提交: 219"）
+        const fpBar = col.querySelector('.sewf-fingerprint');
+        if (fpBar && fpBar.children.length >= 2) {
+            if (fpBar.querySelector('.sewf-local-icon')) return;
+            const icon = this._makeIcon(r);
+            fpBar.insertBefore(icon, fpBar.children[1]);
+            return;
+        }
+        // ② 其次插入演员统计行（"演员 (N)  ▶  ♀️1 ♂️1 ⭐1"）
         const statsRow = col.querySelector('.performer-section > div');
         if (statsRow) {
             if (statsRow.querySelector('.sewf-local-icon')) return;
-            const icon = document.createElement('a');
-            icon.className = 'sewf-local-icon';
-            icon.href = r.url;
-            icon.target = '_blank';
-            icon.rel = 'noopener';
-            icon.textContent = '▶';
-            icon.title = '本地 Stash 已有此场景，点击播放';
+            const icon = this._makeIcon(r);
             if (statsRow.children.length >= 2) {
                 statsRow.insertBefore(icon, statsRow.children[1]);
             } else {
@@ -545,9 +547,13 @@ const SceneMatch = {
             }
             return;
         }
-        // 无演员行的卡片：fallback 到 card-footer 末尾（图标版）
+        // ③ fallback 到 card-footer 末尾
         const footer = col.querySelector('.card-footer');
         if (!footer || footer.querySelector('.sewf-local-icon, .sewf-local-btn')) return;
+        footer.appendChild(this._makeIcon(r));
+    },
+
+    _makeIcon(r) {
         const icon = document.createElement('a');
         icon.className = 'sewf-local-icon';
         icon.href = r.url;
@@ -555,7 +561,7 @@ const SceneMatch = {
         icon.rel = 'noopener';
         icon.textContent = '▶';
         icon.title = '本地 Stash 已有此场景，点击播放';
-        footer.appendChild(icon);
+        return icon;
     },
 
     _addDetailButton(r) {
