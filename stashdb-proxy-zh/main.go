@@ -39,10 +39,14 @@ type Config struct {
 	} `json:"imageCache"`
 	CacheDir     string `json:"cacheDir"`
 	FaviconProxy string `json:"faviconProxy"` // favicon 回源专用代理（DDG 需代理可达）
+	ListCache    struct {
+		TTLSeconds int `json:"ttlSeconds"` // 场景列表查询缓存 TTL，默认 300（5 分钟）
+		MaxMB      int `json:"maxMB"`      // 缓存容量上限 MB，默认 50
+	} `json:"listCache"`
 	LocalStash   struct {
-		GraphQL        string `json:"graphql"`        // 本地 Stash GraphQL 端点，如 http://<local-stash>/graphql
+		GraphQL        string `json:"graphql"`        // 本地 Stash GraphQL 端点，如 http://192.168.4.1:9999/graphql
 		RefreshMinutes int    `json:"refreshMinutes"` // 标签/场景索引刷新周期，默认 60
-		PlayerURL      string `json:"playerUrl"`      // 本地播放器基础 URL（跳转播放用），如 http://<local-stash>
+		PlayerURL      string `json:"playerUrl"`      // 本地播放器基础 URL（跳转播放用），如 https://stash.932177.xyz:8081
 	} `json:"localStash"`
 }
 
@@ -421,12 +425,128 @@ func (p *Proxy) reverseHandler() http.Handler {
 	return rp
 }
 
+// ============ 列表查询缓存（queryScenes 结果，内存 TTL） ============
+
+type listEntry struct {
+	data    []byte
+	savedAt time.Time
+}
+
+// listCache 缓存场景列表 GraphQL 查询结果：key=md5(请求 body)，
+// 排序/筛选/页码已编码在 body 中，天然区分；TTL 过期自动失效。
+type listCache struct {
+	mu        sync.Mutex
+	items     map[string]*listEntry
+	ttl       time.Duration
+	maxBytes  int64
+	totalBytes int64
+}
+
+func newListCache(ttl time.Duration, maxBytes int64) *listCache {
+	return &listCache{items: make(map[string]*listEntry), ttl: ttl, maxBytes: maxBytes}
+}
+
+func (lc *listCache) get(key string) ([]byte, bool) {
+	lc.mu.Lock()
+	defer lc.mu.Unlock()
+	e, ok := lc.items[key]
+	if !ok {
+		return nil, false
+	}
+	if time.Since(e.savedAt) > lc.ttl {
+		delete(lc.items, key)
+		lc.totalBytes -= int64(len(e.data))
+		return nil, false
+	}
+	return e.data, true
+}
+
+func (lc *listCache) put(key string, data []byte) {
+	lc.mu.Lock()
+	defer lc.mu.Unlock()
+	if old, ok := lc.items[key]; ok {
+		lc.totalBytes -= int64(len(old.data))
+	}
+	lc.items[key] = &listEntry{data: data, savedAt: time.Now()}
+	lc.totalBytes += int64(len(data))
+	// 超限：清最旧 25%
+	for lc.totalBytes > lc.maxBytes && len(lc.items) > 4 {
+		var oldestKey string
+		var oldest time.Time
+		for k, v := range lc.items {
+			if oldestKey == "" || v.savedAt.Before(oldest) {
+				oldestKey, oldest = k, v.savedAt
+			}
+		}
+		lc.totalBytes -= int64(len(lc.items[oldestKey].data))
+		delete(lc.items, oldestKey)
+	}
+}
+
+// 可缓存条件：POST 的 queryScenes 列表查询，且非 mutation
+func isCacheableListQuery(body []byte) bool {
+	var req struct {
+		Query string `json:"query"`
+	}
+	if err := json.Unmarshal(body, &req); err != nil || req.Query == "" {
+		return false
+	}
+	if strings.Contains(strings.ToLower(req.Query), "mutation") {
+		return false
+	}
+	return strings.Contains(req.Query, "queryScenes")
+}
+
+// 可缓存响应：无 GraphQL errors
+func isCacheableListResponse(data []byte) bool {
+	var resp struct {
+		Errors []any `json:"errors"`
+	}
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return false
+	}
+	return len(resp.Errors) == 0
+}
+
+// forwardGraphQL 直接转发上游（与 graphQLReverseProxy 等价，但可读回响应体）
+func (p *Proxy) forwardGraphQL(r *http.Request, body []byte) ([]byte, error) {
+	target := p.cfg.Site.Target
+	req, err := http.NewRequestWithContext(r.Context(), "POST", strings.TrimRight(target, "/")+"/graphql", bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if c := r.Header.Get("Cookie"); c != "" {
+		req.Header.Set("Cookie", c)
+	} else {
+		req.Header.Set("Cookie", p.cfg.Site.Cookie)
+	}
+	if k := r.Header.Get("ApiKey"); k != "" {
+		req.Header.Set("ApiKey", k)
+	}
+	req.Header.Set("Origin", target+"/")
+	req.Header.Set("Referer", target+"/")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (stashdb-proxy)")
+	req.Header.Del("Accept-Encoding")
+	client := &http.Client{Timeout: 60 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("upstream graphql status %d", resp.StatusCode)
+	}
+	return io.ReadAll(resp.Body)
+}
+
 // ============ GraphQL 转发 ============
 
 func (p *Proxy) graphQLHandler() http.Handler {
-	target := p.cfg.Site.Target
+	// 可缓存的列表查询走缓存层，其余保持原 ReverseProxy
 	rp := &httputil.ReverseProxy{
 		Director: func(req *http.Request) {
+			target := p.cfg.Site.Target
 			u, _ := url.Parse(target)
 			req.URL.Scheme = u.Scheme
 			req.URL.Host = u.Host
@@ -439,7 +559,40 @@ func (p *Proxy) graphQLHandler() http.Handler {
 			req.Header.Del("Accept-Encoding")
 		},
 	}
-	return rp
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			rp.ServeHTTP(w, r)
+			return
+		}
+		body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+		if err != nil {
+			http.Error(w, "bad body", http.StatusBadRequest)
+			return
+		}
+		if !isCacheableListQuery(body) {
+			r.Body = io.NopCloser(bytes.NewReader(body))
+			rp.ServeHTTP(w, r)
+			return
+		}
+		key := fmt.Sprintf("%x", md5.Sum(body))
+		if data, ok := p.listCache.get(key); ok {
+			w.Header().Set("Content-Type", "application/json; charset=utf-8")
+			w.Header().Set("X-Cache-Status", "HIT")
+			w.Write(data)
+			return
+		}
+		data, err := p.forwardGraphQL(r, body)
+		if err != nil {
+			http.Error(w, "upstream graphql failed", http.StatusBadGateway)
+			return
+		}
+		if isCacheableListResponse(data) {
+			p.listCache.put(key, data)
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.Header().Set("X-Cache-Status", "MISS")
+		w.Write(data)
+	})
 }
 
 // ============ 本地 Stash 标签索引（一次性全量拉取 + 内存查询） ============
@@ -795,10 +948,11 @@ func (p *Proxy) resolveScenesHandler() http.HandlerFunc {
 // ============ 主程序 ============
 
 type Proxy struct {
-	cfg      *Config
-	cache    *diskCache
-	tagIdx   *tagIndex
-	sceneIdx *sceneIndex
+	cfg       *Config
+	cache     *diskCache
+	tagIdx    *tagIndex
+	sceneIdx  *sceneIndex
+	listCache *listCache
 }
 
 func main() {
@@ -819,7 +973,15 @@ func main() {
 		time.Duration(cfg.ImageCache.TTLDays)*24*time.Hour,
 		int64(cfg.ImageCache.MaxSizeGB)*1024*1024*1024,
 	)
-	p := &Proxy{cfg: cfg, cache: cache, tagIdx: newTagIndex(cfg), sceneIdx: newSceneIndex(cfg)}
+	lcTTL := time.Duration(cfg.ListCache.TTLSeconds) * time.Second
+	if lcTTL <= 0 {
+		lcTTL = 300 * time.Second
+	}
+	lcMax := int64(cfg.ListCache.MaxMB) * 1024 * 1024
+	if lcMax <= 0 {
+		lcMax = 50 * 1024 * 1024
+	}
+	p := &Proxy{cfg: cfg, cache: cache, tagIdx: newTagIndex(cfg), sceneIdx: newSceneIndex(cfg), listCache: newListCache(lcTTL, lcMax)}
 	go cache.enforceLoop()
 
 	flagCache := newDiskCache(filepath.Join(cfg.CacheDir, "flag"), 30*24*time.Hour, 512*1024*1024)
