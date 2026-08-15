@@ -975,11 +975,11 @@ func main() {
 	)
 	lcTTL := time.Duration(cfg.ListCache.TTLSeconds) * time.Second
 	if lcTTL <= 0 {
-		lcTTL = 300 * time.Second
+		lcTTL = 24 * time.Hour // 站点更新不频繁，默认 24 小时
 	}
 	lcMax := int64(cfg.ListCache.MaxMB) * 1024 * 1024
 	if lcMax <= 0 {
-		lcMax = 50 * 1024 * 1024
+		lcMax = 500 * 1024 * 1024 // 默认 500MB
 	}
 	p := &Proxy{cfg: cfg, cache: cache, tagIdx: newTagIndex(cfg), sceneIdx: newSceneIndex(cfg), listCache: newListCache(lcTTL, lcMax)}
 	go cache.enforceLoop()
