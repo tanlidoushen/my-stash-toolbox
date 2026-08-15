@@ -1,0 +1,14 @@
+root = "."
+tmp_dir = "/tmp/air"
+
+[build]
+  cmd = "./build.sh && go build -o /tmp/air/stashdb-proxy ."
+  bin = "/tmp/air/stashdb-proxy"
+  include_ext = ["go", "js", "json", "sh"]
+  exclude_dir = ["cache", ".git"]
+  delay = 500
+  stop_on_error = false
+  kill_delay = 500
+
+[log]
+  time = false

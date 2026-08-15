@@ -1,0 +1,8 @@
+# 敏感配置与运行产物
+config.json
+cache/
+enhanced.js
+
+# 杂项
+DESIGN.md
+*.tar.gz

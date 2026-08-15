@@ -1,0 +1,18 @@
+{
+  "listen": ":8900",
+  "site": {
+    "target": "https://stashdb.org",
+    "cookie": "stashbox=YOUR_LOGIN_COOKIE"
+  },
+  "imageCache": {
+    "maxSizeGB": 10,
+    "ttlDays": 30
+  },
+  "cacheDir": "./cache",
+  "faviconProxy": "",
+  "localStash": {
+    "graphql": "http://<local-stash-ip>:9999/graphql",
+    "refreshMinutes": 60,
+    "playerUrl": "http://<local-stash-ip>:9997"
+  }
+}

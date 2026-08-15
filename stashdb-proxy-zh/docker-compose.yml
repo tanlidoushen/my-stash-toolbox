@@ -1,0 +1,11 @@
+services:
+  stashdb-proxy:
+    image: stashdb-proxy:latest
+    container_name: stashdb-proxy
+    ports:
+      - "8900:8900"
+    volumes:
+      # 挂载宿主机项目目录下的 config.json（只读）与 cache 目录
+      - "./config.json:/app/config.json:ro"
+      - "./cache:/app/cache"
+    restart: unless-stopped
