@@ -51,8 +51,3 @@ docker run -d --name stash-webhook-scanner \
 | `STASHBOX_PROXY` | `http://<proxy>:7890` | stash-box 外网访问代理 |
 
 完整配置见 [config.py](config.py)，均可通过环境变量覆盖。
-
-## 说明
-
-- 本仓库为公开模板，**不包含任何私有 API 密钥与内网地址**，配置一律通过环境变量注入
-- 磁力搜索使用 AVDB 聚合源；如需其他磁力源，可参照 `bot/magnet_sources/` 插件接口自行扩展
