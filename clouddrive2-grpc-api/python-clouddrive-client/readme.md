@@ -2,18 +2,24 @@
 
 > **本仓库维护版本**:基于上游 [ChenyangGao/web-mount-packs](https://github.com/ChenyangGao/web-mount-packs) 的 `python-clouddrive-client`,protobuf 已升级至 **v1.0.13(226 个 RPC)**,并独立成库维护。protobuf 定义见 `clouddrive/proto/CloudDrive.proto`。
 
-![PyPI - Python Version](https://img.shields.io/pypi/pyversions/clouddrive)
-![PyPI - Version](https://img.shields.io/pypi/v/clouddrive)
-![PyPI - Downloads](https://img.shields.io/pypi/dm/clouddrive)
-![PyPI - Format](https://img.shields.io/pypi/format/clouddrive)
-![PyPI - Status](https://img.shields.io/pypi/status/clouddrive)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](pyproject.toml)
+[![gRPC](https://img.shields.io/badge/gRPC-226%20RPC-purple.svg)](clouddrive/proto/CloudDrive.proto)
 
 ## 安装
 
-通过 [pypi](https://pypi.org/project/clouddrive/)
+本仓库为本地维护版（不从 PyPI 发布），直接在仓库目录安装：
 
 ```console
-pip install -U clouddrive
+pip install -e .
+```
+
+或仅引入包目录（无需安装）：
+
+```python
+import sys
+sys.path.insert(0, "/path/to/python-clouddrive-client")
+from clouddrive import CloudDriveClient, CloudDriveFileSystem
 ```
 
 ## 入门介绍
