@@ -59,4 +59,3 @@ def match_dir_rule(source_path, dest_path):
             return is_jav
 
     return None
-

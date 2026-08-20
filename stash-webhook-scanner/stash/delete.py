@@ -1,10 +1,10 @@
-"""删除场景：CloudDrive2 物理删除 → Stash 场景销毁。"""
+"""删除场景：CD2 物理删除 → Stash 场景销毁。"""
 
 import logging
 import asyncio
 
 from config import Config
-from cd2_client import get_cd2_client
+from cd2 import get_cd2_client
 
 logger = logging.getLogger(__name__)
 
@@ -12,8 +12,8 @@ logger = logging.getLogger(__name__)
 def _stash_path_to_cd2(file_path):
     """将 Stash 中的真实路径转为 CD2 虚拟路径。
 
-    现有脚本统一做法：去掉 <local-mount-prefix> 前缀，
-    剩下的就是 CD2 能识别的虚拟路径（保留 /<cloud-path>/ 等挂载前缀）。
+    现有脚本统一做法：去掉 <mount-prefix> 前缀，
+    剩下的就是 CD2 能识别的虚拟路径（保留 网盘挂载前缀（如 /115））。
     """
     if Config.CD2_STRIP_PREFIX and file_path.startswith(Config.CD2_STRIP_PREFIX):
         return "/" + file_path[len(Config.CD2_STRIP_PREFIX):].lstrip("/")
@@ -21,12 +21,12 @@ def _stash_path_to_cd2(file_path):
 
 
 def _delete_cd2_file(cd2_path):
-    """通过 gRPC 调用 CloudDrive2 删除单个文件。返回 (ok, error_msg)。"""
+    """通过 gRPC 调用 CD2 删除单个文件。返回 (ok, error_msg)。"""
     try:
-        data = get_cd2_client().delete_file(cd2_path)
-        if data.get("success"):
+        data = get_cd2_client().DeleteFile({"path": cd2_path})
+        if data.success:
             return True, None
-        return False, data.get("errorMessage", "未知错误")
+        return False, data.errorMessage or "未知错误"
     except Exception as e:
         return False, str(e)[:150]
 
@@ -101,11 +101,11 @@ async def delete_scene(client, scene_id):
         "scene_error": None,
     }
 
-    # ── 2. 逐文件 CloudDrive2 物理删除 ──
+    # ── 2. 逐文件 CD2 物理删除 ──
     for f in files:
         stash_path = f.get("path", "")
         cd2_path = _stash_path_to_cd2(stash_path)
-        logger.info("  🗑 CloudDrive2 删除: %s", cd2_path)
+        logger.info("  🗑 CD2 删除: %s", cd2_path)
 
         ok, err = await asyncio.to_thread(_delete_cd2_file, cd2_path)
         detail = {"path": stash_path, "cd2_path": cd2_path, "ok": ok, "error": err}
@@ -115,7 +115,7 @@ async def delete_scene(client, scene_id):
             result["files_deleted"] += 1
         else:
             result["files_failed"] += 1
-            logger.warning("  ❌ CloudDrive2 删除失败: %s — %s", cd2_path, err)
+            logger.warning("  ❌ CD2 删除失败: %s — %s", cd2_path, err)
 
     # ── 3. Stash 中销毁场景 ──
     logger.info("  🗑 Stash sceneDestroy: %s", scene_id)
@@ -128,4 +128,3 @@ async def delete_scene(client, scene_id):
         logger.error("  ❌ 场景 %s 销毁失败", scene_id)
 
     return result
-

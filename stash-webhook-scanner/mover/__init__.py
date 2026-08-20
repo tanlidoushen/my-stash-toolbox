@@ -1,4 +1,3 @@
 from .handler import FileMoveHandler
 from .mover import FileMover
-from cd2_client import CD2Client, get_cd2_client
-
+from cd2 import get_cd2_client

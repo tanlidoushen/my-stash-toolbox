@@ -1,38 +1,10 @@
 """Bot 模块通用工具函数。"""
 
-import asyncio
 import logging
 
 from telegram.error import BadRequest
 
 logger = logging.getLogger(__name__)
-
-# 自删除定时器：message_id -> asyncio.Task
-_pending_deletion: dict[int, asyncio.Task] = {}
-
-
-def _cancel_auto_delete(message_id: int):
-    """取消指定消息的自动删除定时器。"""
-    task = _pending_deletion.pop(message_id, None)
-    if task and not task.done():
-        task.cancel()
-
-
-def _schedule_auto_delete(bot, chat_id: int, message_id: int, delay: int = 300):
-    """在 delay 秒后自动删除指定消息。"""
-    _cancel_auto_delete(message_id)
-
-    async def _delete():
-        try:
-            await asyncio.sleep(delay)
-            await bot.delete_message(chat_id=chat_id, message_id=message_id)
-        except Exception:
-            pass
-        finally:
-            _pending_deletion.pop(message_id, None)
-
-    task = asyncio.create_task(_delete())
-    _pending_deletion[message_id] = task
 
 
 async def safe_edit_text(query, text, **kwargs):
@@ -77,4 +49,3 @@ def fmt_file_size(f):
         size_gb = round(size_bytes / (1024 ** 3), 2)
         return f"  • <code>{path}</code> — {size_gb} GB"
     return f"  • <code>{path}</code>"
-

@@ -56,4 +56,3 @@ def extract_japanese_code(file_path, western_blacklist=None):
                     return None
                 return normalize_japanese_code(code)
     return None
-

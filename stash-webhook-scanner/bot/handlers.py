@@ -336,8 +336,8 @@ async def handle_classify_command(update: Update, context: ContextTypes.DEFAULT_
 import httpx
 
 async def _get_current_mode() -> str:
-    """查询 stash2alist 当前代理模式。"""
-    url = Config.STASH2CD2_MODE_API
+    """查询 stash2alist 当前直链模式。"""
+    url = Config.STASH2ALIST_MODE_API
     async with httpx.AsyncClient(timeout=5) as client:
         resp = await client.get(url)
         resp.raise_for_status()
@@ -345,8 +345,8 @@ async def _get_current_mode() -> str:
         return data.get("mode", "unknown")
 
 async def _switch_mode(target: str) -> str:
-    """切换 stash2alist 代理模式。"""
-    url = Config.STASH2CD2_MODE_API
+    """切换 stash2alist 直链模式。"""
+    url = Config.STASH2ALIST_MODE_API
     async with httpx.AsyncClient(timeout=5) as client:
         resp = await client.post(url, json={"mode": target})
         resp.raise_for_status()
@@ -367,12 +367,12 @@ def _build_mode_keyboard(current_mode: str):
     return InlineKeyboardMarkup(keyboard)
 
 async def cmd_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """查看/切换 stash2alist 代理模式。"""
+    """查看/切换 stash2alist 直链模式。"""
     try:
         mode = await _get_current_mode()
         kb = _build_mode_keyboard(mode)
         await update.message.reply_text(
-            f"📡 <b>stash2alist 代理模式</b>\n\n当前: <code>{mode}</code>",
+            f"📡 <b>stash2alist 直链模式</b>\n\n当前: <code>{mode}</code>",
             reply_markup=kb, parse_mode="HTML",
         )
     except Exception as e:
@@ -382,4 +382,265 @@ async def cmd_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"<code>{e}</code>",
             parse_mode="HTML",
         )
+
+
+async def cmd_hash(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """/hash <场景ID> — 查询校验码采集库（checksums.db）返回各校验码。"""
+    if not context.args or len(context.args) < 1:
+        await update.message.reply_text(
+            "用法：/hash 场景ID\n例如：/hash 27717", parse_mode="HTML")
+        return
+    arg = context.args[0].strip()
+    if not arg.isdigit():
+        await update.message.reply_text("场景 ID 应为数字。", parse_mode="HTML")
+        return
+
+    from db import init_db, get_by_scene_id
+    init_db()
+    row = get_by_scene_id(arg)
+
+    # 已有完整数据 → 直接发送
+    if row and row.get("md5"):
+        await _send_hash_result(update, arg, row)
+        return
+
+    # 需要阻塞操作 → 后台任务
+    msg = await update.message.reply_text(
+        "🔍 正在采集校验码（大文件 ed2k 需要一些时间），完成后将自动更新…",
+        parse_mode="HTML")
+    chat_id = msg.chat_id
+    msg_id = msg.message_id
+    bot = msg.bot
+
+    async def _poll_hash():
+        import asyncio
+        from stash.client import StashClient
+        from stash.checksum import collect_checksums, ensure_md5
+
+        client = StashClient(Config.STASH_URL, api_key=Config.STASH_APIKEY)
+        try:
+            # 1. 采集校验码（含 ed2k）
+            if not row:
+                result = await collect_checksums(client, arg)
+                if "error" in result:
+                    text = "❌ 采集失败：%s（场景不存在或无文件？）" % result["error"]
+                    return await _safe_edit(bot, chat_id, msg_id, text)
+
+            row = get_by_scene_id(arg)
+            if not row:
+                text = "❌ 采集完成但查询仍无记录（异常），请重试。"
+                return await _safe_edit(bot, chat_id, msg_id, text)
+
+            # 2. 缺 md5 → rescan 补算
+            if not row.get("md5"):
+                result = await ensure_md5(client, arg)
+                if "error" in result:
+                    text = "❌ 补 md5 失败：%s" % result["error"]
+                    return await _safe_edit(bot, chat_id, msg_id, text)
+
+            row = get_by_scene_id(arg)
+            if not row:
+                text = "❌ 采集完成但查询仍无记录（异常），请重试。"
+                return await _safe_edit(bot, chat_id, msg_id, text)
+
+            # 3. 构建完整结果
+            text = _build_hash_text(arg, row)
+            await _safe_edit(bot, chat_id, msg_id, text)
+
+        except Exception as e:
+            logger.error("hash 后台采集异常 scene=%s: %s", arg, e)
+            await _safe_edit(bot, chat_id, msg_id, "❌ 采集异常：%s" % e)
+
+    asyncio.create_task(_poll_hash())
+
+
+async def _send_hash_result(update, scene_id, row):
+    """直接发送校验码结果（已有数据，无需阻塞）。"""
+    text = _build_hash_text(scene_id, row)
+    import io
+    import httpx
+    from stash.client import StashClient
+
+    client = StashClient(Config.STASH_URL, api_key=Config.STASH_APIKEY)
+    screenshot_url = None
+    try:
+        data = await client.post(
+            "query Shot($id: ID!) { findScene(id: $id) { paths { screenshot } } }",
+            {"id": scene_id},
+        )
+        scene = (data or {}).get("findScene") or {}
+        paths = scene.get("paths") or {}
+        screenshot_url = paths.get("screenshot")
+    except Exception:
+        pass
+
+    if screenshot_url:
+        text += "\n\n▶️ <a href=\"%s/scenes/%s\">查看原视频</a>" % (
+            Config.STASH_BASE_URL.rstrip("/"), scene_id)
+        try:
+            async with httpx.AsyncClient(timeout=30, verify=False) as c:
+                r = await c.get(screenshot_url)
+                if r.status_code == 200:
+                    from telegram import InputFile
+                    from io import BytesIO
+                    await update.message.reply_photo(
+                        InputFile(BytesIO(r.content), filename="screenshot.jpg"),
+                        caption=text, parse_mode="HTML")
+                    return
+        except Exception:
+            pass
+
+    await update.message.reply_text(text, parse_mode="HTML")
+
+
+def _build_hash_text(scene_id, row):
+    """构建校验码信息文本。"""
+    base = Config.STASH_BASE_URL.rstrip("/")
+    lines = []
+    lines.append("🔑 <b>校验码信息</b>")
+    lines.append('▶️ <a href="%s/scenes/%s">查看原视频</a>' % (base, scene_id))
+    if row.get("region"):
+        lines.append("🌐 <b>地区:</b> %s" % row["region"])
+    if row.get("title"):
+        lines.append("📝 <b>标题:</b> %s" % row["title"])
+    if row.get("code"):
+        lines.append("📀 <b>番号:</b> <code>%s</code>" % row["code"])
+    lines.append("📁 <code>%s</code>" % row["cd2_path"])
+    if row.get("file_size"):
+        size = row["file_size"]
+        if size >= 1024 ** 3:
+            lines.append("💾 大小: %.2f GB" % (size / 1024 ** 3))
+        elif size >= 1024 ** 2:
+            lines.append("💾 大小: %.2f MB" % (size / 1024 ** 2))
+        else:
+            lines.append("💾 大小: %d B" % size)
+    for key, label in (("ed2k", "🔑 ed2k"), ("sha1", "🔑 sha1"),
+                       ("md5", "🔑 md5"), ("oshash", "🔑 oshash"),
+                       ("phash", "🔑 phash")):
+        v = row.get(key)
+        if v:
+            lines.append("%s: <code>%s</code>" % (label, v))
+    for sid in (row.get("stash_ids") or []):
+        ep = (sid.get("endpoint") or "").replace("https://", "").replace("/graphql", "")
+        if sid.get("stash_id"):
+            lines.append("🆔 %s: <code>%s</code>" % (ep, sid["stash_id"]))
+    if row.get("updated_at"):
+        lines.append("🕐 采集时间: %s" % row["updated_at"])
+    return "\n".join(lines)
+
+
+async def _safe_edit(bot, chat_id, msg_id, text):
+    """安全地编辑消息（后台任务用）。"""
+    try:
+        await bot.edit_message_text(text, chat_id=chat_id, message_id=msg_id, parse_mode="HTML")
+    except Exception as e:
+        logger.warning("hash 编辑消息失败: %s", e)
+
+
+
+async def cmd_sprite(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """/sprite <场景ID> — 查看场景 sprite(VTT) 信息；帧间隔偏离标准 ~10s（±3s 容差）时提供重新生成按钮。"""
+    if not context.args or len(context.args) < 1:
+        await update.message.reply_text(
+            "用法：/sprite 场景ID\n例如：/sprite 27689", parse_mode="HTML")
+        return
+    arg = context.args[0].strip()
+    if not arg.isdigit():
+        await update.message.reply_text("场景 ID 应为数字。", parse_mode="HTML")
+        return
+
+    import asyncio
+    import re
+
+    import httpx
+    from stash.client import StashClient
+
+    client = StashClient(Config.STASH_URL, api_key=Config.STASH_APIKEY)
+    query = """
+    query SpriteInfo($id: ID!) {
+      findScene(id: $id) { id title code date files { duration } paths { vtt sprite screenshot } }
+    }
+    """
+    data = await client.post(query, {"id": arg})
+    scene = (data or {}).get("findScene")
+    if not scene:
+        await update.message.reply_text("未找到场景 %s。" % arg, parse_mode="HTML")
+        return
+
+    vtt_url = (scene.get("paths") or {}).get("vtt")
+    files = scene.get("files") or [{}]
+    duration = files[0].get("duration")
+
+    # 拉 VTT 解析帧数与间隔
+    frames = None
+    interval_ms = None
+    if vtt_url:
+        url = vtt_url if vtt_url.startswith("http") else Config.STASH_BASE_URL.rstrip("/") + vtt_url
+        try:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(20.0)) as c:
+                resp = await c.get(url)
+            times = re.findall(r"(\d+):(\d+):(\d+)\.(\d+)\s+-->", resp.text)
+            frames = len(times)
+
+            def _ms(t):
+                return int(t[0]) * 3600000 + int(t[1]) * 60000 + int(t[2]) * 1000 + int(t[3])
+
+            if frames > 1:
+                interval_ms = _ms(times[1]) - _ms(times[0])
+        except Exception as e:
+            logger.warning("sprite 命令拉 VTT 失败 scene=%s: %s", arg, e)
+
+    # 判定：标准 ~10s，容差 ±3s（模糊检测区间 7s~13s）
+    if interval_ms is not None:
+        abnormal = not (7000 <= interval_ms <= 13000)
+    else:
+        abnormal = True  # 无 VTT = 未生成
+
+    base = Config.STASH_BASE_URL.rstrip("/")
+    lines = ["🎞️ <b>Sprite 信息</b>"]
+    lines.append('▶️ <a href="%s/scenes/%s">查看原视频</a>' % (base, arg))
+    if scene.get("code"):
+        lines.append("📀 <b>番号:</b> <code>%s</code>" % scene["code"])
+    if scene.get("title"):
+        lines.append("📝 <b>标题:</b> %s" % scene["title"][:60])
+    if duration:
+        lines.append("⏱️ <b>时长:</b> %.0f 分钟" % (duration / 60))
+    lines.append("🖼️ <b>帧数:</b> %s" % (frames if frames is not None else "—"))
+    if interval_ms is not None:
+        lines.append("⏱️ <b>帧间隔:</b> %.1fs" % (interval_ms / 1000))
+        if abnormal:
+            lines.append("⚠️ <b>状态:</b> 异常（偏离标准 ~10s，±3s 容差）")
+        else:
+            lines.append("✅ <b>状态:</b> 正常（标准 ~10s）")
+    else:
+        lines.append("⚠️ <b>状态:</b> 无 VTT（sprite 未生成）")
+    text = "\n".join(lines)
+
+    reply_markup = None
+    if abnormal:
+        reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton(
+            "🔄 重新生成 Sprite", callback_data="sprite_regen_%s" % arg)]])
+
+    # 图片消息（截图）+ 链接 + 按钮；无截图回退纯文本
+    import io
+    screenshot_url = (scene.get("paths") or {}).get("screenshot")
+    img_data = None
+    if screenshot_url:
+        try:
+            ss = screenshot_url if screenshot_url.startswith("http") else base + screenshot_url
+            async with httpx.AsyncClient(timeout=httpx.Timeout(15.0)) as c:
+                resp = await c.get(ss)
+            if resp.status_code == 200 and resp.headers.get("content-type", "").startswith("image/"):
+                img_data = io.BytesIO(resp.content)
+                img_data.name = "sprite.jpg"
+        except Exception as e:
+            logger.warning("sprite 命令截图下载失败 scene=%s: %s", arg, e)
+
+    if img_data is not None:
+        await update.message.reply_photo(
+            photo=img_data, caption=text, parse_mode="HTML",
+            reply_markup=reply_markup)
+    else:
+        await update.message.reply_text(
+            text, parse_mode="HTML", reply_markup=reply_markup)
 

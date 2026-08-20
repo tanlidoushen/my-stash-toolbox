@@ -14,6 +14,12 @@ venv/
 *_pb2_grpc.py
 *_pb2.pyi
 
+# 内置 python-clouddrive-client 的 pb2 是运行必需（镜像不跑 protoc），强制提交
+!clouddrive/proto/*_pb2.py
+!clouddrive/proto/*_pb2_grpc.py
+!clouddrive/proto/*_grpc.py
+!clouddrive/proto/clouddrive_pb2.py
+
 # 系统
 Thumbs.db
 .DS_Store
@@ -21,3 +27,7 @@ Thumbs.db
 # 日志
 *.log
 
+# 运行时数据与本地依赖（bind mount，不入库）
+vendor/
+data/
+backups/

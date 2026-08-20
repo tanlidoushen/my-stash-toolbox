@@ -23,37 +23,47 @@ async def get_scene_data(client, scene_id):
     return None
 
 
-async def build_caption(scene, is_japanese, client, stash_base_url, title_prefix="🎬 <b>影片处理完成</b>"):
-    """根据场景数据和区域类型构建 HTML 消息文本。
+async def _region_line(is_japanese, client, stash_base_url):
+    """制作地区行（#JAV / #Non-JAV，含标签链接）。"""
+    from stash.tag import create_or_find_tag
+    tag_name = "JAV" if is_japanese else "Non-JAV"
+    tag_id = await create_or_find_tag(client, tag_name, verbose=False)
+    if tag_id and stash_base_url:
+        tag_url = "%s/tags/%s" % (stash_base_url.rstrip("/"), tag_id)
+        return '🌐 <b>制作地区:</b> <a href="%s">#%s</a>' % (tag_url, tag_name)
+    return "🌐 <b>制作地区:</b> #%s" % tag_name
 
-    title_prefix: 消息标题行，调用方可自定义（如 "🗑️ <b>确认删除场景？</b>"）。
+
+async def build_scene_card(scene, is_japanese, client, stash_base_url,
+                           title_prefix="🎬 <b>影片处理完成</b>",
+                           show_details=True, extra_lines=None):
+    """统一场景卡片（2026-08-17 重构：send_notification / soft_delete 确认共用）。
+
+    Args:
+        scene: 场景 dict（id/title/code/date/director/details/performers/studio/files/tags）
+        is_japanese: True=JAV / False=Non-JAV
+        client: StashClient（查 JAV/Non-JAV 标签用）
+        stash_base_url: Stash 前端 base url（生成超链接）
+        title_prefix: 消息标题行
+        show_details: True=完整卡片（播放链接+地区+标题+番号+演员+日期+片商+文件+简介+标签）
+                      False=精简卡片（软删确认用：标题+番号+日期+演员，无简介/标签/文件）
+        extra_lines: 追加行列表（软删确认的"文件数/是否删除"等）
+
+    Returns:
+        HTML 字符串
     """
     lines = ["%s\n" % title_prefix]
 
     scene_id = scene.get("id")
 
     # 点击播放
-    if scene_id and stash_base_url:
+    if scene_id and stash_base_url and show_details:
         play_url = "%s/scenes/%s" % (stash_base_url, scene_id)
-        lines.append('▶️ <a href="%s">点击播放</a>' % play_url)
+        lines.append('▶️ <a href="%s">查看原视频</a>' % play_url)
 
-    # 制作地区
-    if is_japanese:
-        from stash.tag import create_or_find_tag
-        jav_tag_id = await create_or_find_tag(client, "JAV", verbose=False)
-        if jav_tag_id:
-            jav_tag_url = "%s/tags/%s" % (stash_base_url.rstrip("/"), jav_tag_id)
-            lines.append('🌐 <b>制作地区:</b> <a href="%s">#JAV</a>' % jav_tag_url)
-        else:
-            lines.append("🌐 <b>制作地区:</b> #JAV")
-    else:
-        from stash.tag import create_or_find_tag
-        non_jav_tag_id = await create_or_find_tag(client, "Non-JAV", verbose=False)
-        if non_jav_tag_id:
-            non_jav_tag_url = "%s/tags/%s" % (stash_base_url.rstrip("/"), non_jav_tag_id)
-            lines.append('🌐 <b>制作地区:</b> <a href="%s">#Non-JAV</a>' % non_jav_tag_url)
-        else:
-            lines.append("🌐 <b>制作地区:</b> #Non-JAV")
+    # 制作地区（client 为 None 时跳过——软删确认等无 Stash 上下文的场景）
+    if client is not None:
+        lines.append(await _region_line(is_japanese, client, stash_base_url))
 
     # 标题
     title = scene.get("title")
@@ -96,64 +106,73 @@ async def build_caption(scene, is_japanese, client, stash_base_url, title_prefix
     if release_date:
         lines.append("📅 <b>发行日期:</b> %s" % release_date)
 
-    # 片商 / 工作室
-    studio = scene.get("studio")
-    if studio:
-        studio_id = studio.get("id")
-        studio_name = studio.get("name")
-        if studio_name:
-            tag_text = format_tag(studio_name)
-            if studio_id and stash_base_url:
-                studio_url = "%s/studios/%s" % (stash_base_url, studio_id)
-                studio_line = '<a href="%s">%s</a>' % (studio_url, tag_text)
+    if show_details:
+        # 片商 / 工作室
+        studio = scene.get("studio")
+        if studio:
+            studio_id = studio.get("id")
+            studio_name = studio.get("name")
+            if studio_name:
+                tag_text = format_tag(studio_name)
+                if studio_id and stash_base_url:
+                    studio_url = "%s/studios/%s" % (stash_base_url, studio_id)
+                    studio_line = '<a href="%s">%s</a>' % (studio_url, tag_text)
+                else:
+                    studio_line = tag_text
+                label = "片商" if is_japanese else "工作室"
+                lines.append("🏢 <b>%s:</b> %s" % (label, studio_line))
+
+        # 文件信息
+        files = scene.get("files", [])
+        if files and len(files) > 0:
+            file_info = files[0]
+            size_bytes = file_info.get("size", 0)
+            if size_bytes:
+                size_gb = round(size_bytes / (1024 ** 3), 2)
+                lines.append("💾 <b>大小:</b> %s GB" % size_gb)
+            duration = file_info.get("duration")
+            if duration:
+                duration_min = int(duration // 60)
+                lines.append("⏱ <b>时长:</b> %d 分钟" % duration_min)
+
+        # 简介
+        details = scene.get("details")
+        if details:
+            MAX_CAPTION_LEN = 1024
+            current = "\n".join(lines)
+            prefix = "📖 <b>简介:</b> <blockquote expandable>"
+            suffix = "</blockquote>"
+            available = MAX_CAPTION_LEN - len(current) - 1 - len(prefix) - len(suffix)
+            if available > 0:
+                if len(details) > available:
+                    lines.append("%s%s...%s" % (prefix, details[: available - 3], suffix))
+                else:
+                    lines.append("%s%s%s" % (prefix, details, suffix))
+
+        # 标签
+        tags_list = []
+        for t in scene.get("tags", []):
+            tag_id = t.get("id")
+            tag_name = t.get("name")
+            if not tag_name:
+                continue
+            tag_text = format_tag(tag_name)
+            if tag_id and stash_base_url:
+                tag_url = "%s/tags/%s" % (stash_base_url, tag_id)
+                tags_list.append('<a href="%s">%s</a>' % (tag_url, tag_text))
             else:
-                studio_line = tag_text
-            label = "片商" if is_japanese else "工作室"
-            lines.append("🏢 <b>%s:</b> %s" % (label, studio_line))
+                tags_list.append(tag_text)
+        if tags_list:
+            lines.append("\n🏷️ <b>标签:</b> %s" % " ".join(tags_list))
 
-    # 文件信息
-    files = scene.get("files", [])
-    if files and len(files) > 0:
-        file_info = files[0]
-        size_bytes = file_info.get("size", 0)
-        if size_bytes:
-            size_gb = round(size_bytes / (1024 ** 3), 2)
-            lines.append("💾 <b>大小:</b> %s GB" % size_gb)
-        duration = file_info.get("duration")
-        if duration:
-            duration_min = int(duration // 60)
-            lines.append("⏱ <b>时长:</b> %d 分钟" % duration_min)
-
-    # 简介
-    details = scene.get("details")
-    if details:
-        MAX_CAPTION_LEN = 1024
-        current = "\n".join(lines)
-        prefix = "📖 <b>简介:</b> <blockquote expandable>"
-        suffix = "</blockquote>"
-        available = MAX_CAPTION_LEN - len(current) - 1 - len(prefix) - len(suffix)
-        if available <= 0:
-            pass
-        elif len(details) > available:
-            lines.append("%s%s...%s" % (prefix, details[: available - 3], suffix))
-        else:
-            lines.append("%s%s%s" % (prefix, details, suffix))
-
-    # 标签
-    tags_list = []
-    for t in scene.get("tags", []):
-        tag_id = t.get("id")
-        tag_name = t.get("name")
-        if not tag_name:
-            continue
-        tag_text = format_tag(tag_name)
-        if tag_id and stash_base_url:
-            tag_url = "%s/tags/%s" % (stash_base_url, tag_id)
-            tags_list.append('<a href="%s">%s</a>' % (tag_url, tag_text))
-        else:
-            tags_list.append(tag_text)
-    if tags_list:
-        lines.append("\n🏷️ <b>标签:</b> %s" % " ".join(tags_list))
+    # 追加行（软删确认的按钮说明等）
+    for extra in extra_lines or []:
+        lines.append(extra)
 
     return "\n".join(lines)
 
+
+async def build_caption(scene, is_japanese, client, stash_base_url, title_prefix="🎬 <b>影片处理完成</b>"):
+    """兼容入口（2026-08-17 起转发到统一 build_scene_card）。"""
+    return await build_scene_card(scene, is_japanese, client, stash_base_url,
+                                  title_prefix=title_prefix, show_details=True)

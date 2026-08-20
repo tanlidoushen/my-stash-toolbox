@@ -19,6 +19,7 @@ from telegram.error import NetworkError, TimedOut
 
 from config import Config
 from bot.callbacks import on_button_click
+from bot.javdb_search import cmd_javdb_search
 
 logger = logging.getLogger(__name__)
 
@@ -36,8 +37,11 @@ async def post_init(application: Application) -> None:
         BotCommand("scrape", "刮削指定场景 — /scrape 场景ID [jav|nonjav]"),
         BotCommand("rescan", "快速刮削 — /rescan 场景ID [jav|nonjav]"),
         BotCommand("delete", "删除指定场景 — /delete 场景ID或番号"),
+        BotCommand("code", "番号搜索 — /code 番号"),
         BotCommand("archive_task", "归类移动 — /archive_task"),
-        BotCommand("mode", "查看/切换 stash2alist 代理模式"),
+        BotCommand("mode", "查看/切换 stash2alist 直链模式"),
+        BotCommand("hash", "查询校验码 — /hash 场景ID"),
+        BotCommand("sprite", "查看 Sprite 信息 — /sprite 场景ID"),
     ]
     try:
         await application.bot.set_my_commands(menu_commands)
@@ -90,15 +94,18 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 _HELP_TEXT = (
-    "Stash 管理助手 — 帮助\n\n"
+    "🤖 <b>Stash 管理助手 — 帮助</b>\n\n"
     "可用命令：\n"
     "· /start — 打开交互主菜单\n"
     "· /help — 查看本帮助信息\n"
     "· /scrape 场景ID [jav|nonjav] — 对指定场景执行刮削处理（可选指定类型）\n"
     "· /rescan 场景ID [jav|nonjav] — 快速重新刮削（跳过已有的元数据）\n"
-    "· /delete 场景ID — 从 CloudDrive2 物理删除文件并从 Stash 移除记录\n"
+    "· /delete 场景ID — 删除场景（软删 + TG 确认物理删除）\n"
+    "· /code 番号 — 搜索 JavDB 番号信息、磁力链接\n"
+    "· /hash 场景ID — 查询校验码（无记录自动采集，缺 md5 自动补）\n"
+    "· /sprite 场景ID — 查看 Sprite 信息（异常可重新生成）\n"
     "· /archive_task — 手动触发文件归类移动\n"
-    "· /mode — 查看/切换 stash2alist 代理模式（Alist / CloudDrive2）\n\n"
+    "· /mode — 查看/切换 stash2alist 直链模式（Alist / CD2）\n\n"
     "也可点击左下角 menu 按钮快速选择。"
 )
 
@@ -133,9 +140,19 @@ async def cmd_classify(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def cmd_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """响应 /mode，查看/切换 stash2alist 代理模式。"""
+    """响应 /mode，查看/切换 stash2alist 直链模式。"""
     from bot.handlers import cmd_mode as _cmd_mode
     await _cmd_mode(update, context)
+
+async def cmd_hash(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """响应 /hash，查询校验码采集库。"""
+    from bot.handlers import cmd_hash as _cmd_hash
+    await _cmd_hash(update, context)
+
+async def cmd_sprite(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """响应 /sprite，查看场景 sprite(VTT) 信息。"""
+    from bot.handlers import cmd_sprite as _cmd_sprite
+    await _cmd_sprite(update, context)
 
 
 # ─────────────── 消息自动响应 ───────────────
@@ -182,8 +199,11 @@ def build_application(mover_handler=None):
     app.add_handler(CommandHandler("scrape", cmd_scrape, filters=owner_filter))
     app.add_handler(CommandHandler("rescan", cmd_rescan, filters=owner_filter))
     app.add_handler(CommandHandler("delete", cmd_delete, filters=owner_filter))
+    app.add_handler(CommandHandler("code", cmd_javdb_search, filters=owner_filter))
     app.add_handler(CommandHandler("archive_task", cmd_classify, filters=owner_filter))
     app.add_handler(CommandHandler("mode", cmd_mode, filters=owner_filter))
+    app.add_handler(CommandHandler("hash", cmd_hash, filters=owner_filter))
+    app.add_handler(CommandHandler("sprite", cmd_sprite, filters=owner_filter))
     # 消息自动响应：对所有者的消息添加反应（低优先级，不干扰命令路由）
     app.add_handler(
         MessageHandler(owner_filter & filters.TEXT, auto_reaction),
@@ -213,7 +233,37 @@ def run_bot(mover_handler=None):
                 await app.updater.start_polling(allowed_updates=Update.ALL_TYPES)
                 await app.start()
                 while True:
-                    await asyncio.sleep(3600)
+                    await asyncio.sleep(60)
+                    # 2026-08-17: polling 心跳检查——start_polling 在后台线程跑，
+                    # 线程静默死亡时主循环无感知（表现为 bot 能发通知、收不到消息）。
+                    # 每 60s 检查 updater.running，检测到停止则抛异常触发外层重建。
+                    # ⚠️ 2026-08-17 晚修复：僵尸 polling。PTB 22.8 在 daemon 线程反复重建
+                    # 事件循环后，polling 可能"僵尸化"——updater.running 仍为 True，
+                    # 但实际不再拉取更新（pending_update_count 持续积压）。
+                    # 增加第二重检测：getWebhookInfo.pending_update_count >= 3 视为僵尸，
+                    # 触发重建。getWebhookInfo 只查询不抢占 polling（安全）。
+                    try:
+                        if not app.updater.running:
+                            logger.error("🚨 polling 线程已停止, 触发 bot 自动重建...")
+                            raise RuntimeError("polling stopped")
+                    except AttributeError:
+                        pass  # PTB 旧版无 running 属性，跳过检查
+
+                    # 第二重：pending 积压检测（僵尸 polling 探针）
+                    try:
+                        wh = await app.bot.get_webhook_info()
+                        pending = wh.pending_update_count or 0
+                        if pending >= 3:
+                            logger.error(
+                                f"🚨 pending_updates={pending} 持续积压, "
+                                f"polling 疑似僵尸(不消费更新), 触发 bot 重建..."
+                            )
+                            raise RuntimeError("polling zombie")
+                    except RuntimeError:
+                        raise
+                    except Exception as e:
+                        # 网络瞬断/API 异常忽略，下一轮再试
+                        logger.debug(f"get_webhook_info 检查异常: {e}")
             except (NetworkError, TimedOut, OSError) as e:
                 logger.warning(f"🌐 网络连接异常: {e}, 10秒后重连...")
                 try:

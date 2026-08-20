@@ -5,7 +5,7 @@ import re
 import threading
 
 from config import Config
-from cd2_client import get_cd2_client
+from cd2 import get_cd2_client
 from .mover import FileMover
 
 logger = logging.getLogger(__name__)
@@ -134,9 +134,11 @@ class FileMoveHandler:
         if path in self._monitor_path_id_cache:
             return self._monitor_path_id_cache[path]
         try:
-            info = self.client.get_file_info(path)
+            info = self.client.FindFileByPath(
+                {"parentPath": "/", "path": path}
+            )
             if info:
-                fid = info.get("id", "")
+                fid = info.id or ""
                 if fid:
                     self._monitor_path_id_cache[path] = fid
                     logger.debug("监控目录 %s → fileId: %s", path, fid)
@@ -177,7 +179,12 @@ class FileMoveHandler:
 
         logger.info("[%s] [1/4] 正在递归遍历目录...", name)
         try:
-            all_files = self.client.list_directory(monitor_path, force_refresh=True)
+            all_files = []
+            # 递归遍历：walk_attr 产出 (dir, file_dicts, dir_dicts)，平铺文件
+            for _d, files, _dirs in self.client.fs.walk_attr(
+                monitor_path, topdown=True, refresh=True
+            ):
+                all_files.extend(files)
         except Exception as e:
             logger.error("[%s] 遍历目录失败: %s", name, e)
             return result | {"error": "遍历目录失败: %s" % e}
@@ -250,7 +257,7 @@ class FileMoveHandler:
         try:
             sent = await self._bot.send_message(chat_id=target_chat, text=text, parse_mode="HTML")
             if Config.CLASSIFY_DONE_AUTO_DELETE_DELAY > 0:
-                from bot.utils import _schedule_auto_delete
+                from bot.javdb_search_state import _schedule_auto_delete
                 _schedule_auto_delete(
                     self._bot,
                     sent.chat_id,
@@ -281,8 +288,8 @@ class FileMoveHandler:
         for i, (rule, _) in enumerate(self.rules):
             mp = rule["monitor_path"]
             try:
-                info = self.client.get_file_info(mp)
-                if info and str(info.get("id", "")) == str(parent_id):
+                info = self.client.FindFileByPath({"parentPath": "/", "path": mp})
+                if info and str(info.id or "") == str(parent_id):
                     logger.info("离线通知匹配到规则 [%s]: %s → %s",
                                 rule["name"], file_name, mp)
                     matched_indices.append(i)
@@ -341,5 +348,4 @@ class FileMoveHandler:
                     self._send_classify_result(result, chat_id),
                     self._loop,
                 )
-
 

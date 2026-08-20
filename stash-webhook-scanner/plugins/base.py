@@ -34,4 +34,3 @@ class BasePlugin:
             - `urls`: list of URL strings to merge into the scene
         """
         raise NotImplementedError
-

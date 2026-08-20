@@ -52,7 +52,7 @@ class FileMover:
         max_files = self.rule["max_files_per_folder"]
 
         try:
-            entries = self.client.get_sub_files(base, force_refresh=False)
+            entries = self.client.fs.listdir_attr(base, refresh=False)
         except Exception as e:
             logger.warning("[%s] 无法列出目标目录 %s: %s", self.rule["name"], base, e)
             return base
@@ -75,7 +75,7 @@ class FileMover:
         for _num, name in existing:
             folder = f"{base}/{name}"
             try:
-                subfiles = self.client.get_sub_files(folder, force_refresh=False)
+                subfiles = self.client.fs.listdir_attr(folder, refresh=False)
                 file_count = sum(1 for sf in subfiles if not sf.get("isDirectory"))
                 remaining = max_files - file_count
                 logger.debug("[%s] 目录 %s: %d/%d（剩余 %d）", self.rule["name"], name, file_count, max_files, remaining)
@@ -90,10 +90,11 @@ class FileMover:
         new_name = f"{prefix}{new_num:03d}"
         new_folder = f"{base}/{new_name}"
         logger.info("[%s] 新建分卷目录: %s", self.rule["name"], new_folder)
-        if self.client.ensure_dir(new_folder):
+        try:
+            self.client.fs.makedirs(new_folder, exist_ok=True)
             return new_folder
-        else:
-            logger.error("[%s] 无法创建分卷目录 %s，回退到 %s", self.rule["name"], new_folder, base)
+        except Exception as e:
+            logger.error("[%s] 无法创建分卷目录 %s，回退到 %s: %s", self.rule["name"], new_folder, base, e)
             return base
 
     # =================== 待删除：按后缀分目录 ===================
@@ -101,7 +102,7 @@ class FileMover:
     def _resolve_trash_folder(self, ext):
         sub = ext.lstrip(".")
         folder = f"{self.rule['trash_dest']}/{sub}"
-        self.client.ensure_dir(folder)
+        self.client.fs.makedirs(folder, exist_ok=True)
         return folder
 
     # =================== 批量搬移 ===================
@@ -114,19 +115,29 @@ class FileMover:
         success = 0
         fail = 0
 
-        if not self.client.ensure_dir(dest_dir):
+        try:
+            self.client.fs.makedirs(dest_dir, exist_ok=True)
+        except Exception as e:
             logger.error("[%s] 目标目录不可用: %s", self.rule["name"], dest_dir)
             return 0, len(file_paths)
 
         try:
-            self.client.move_file(file_paths, dest_dir, self.g.CONFLICT_POLICY)
+            self.client.MoveFile({
+                "theFilePaths": list(file_paths),
+                "destPath": dest_dir,
+                "conflictPolicy": self.g.CONFLICT_POLICY,
+            })
             success = len(file_paths)
             logger.info("[%s] 批量搬移成功: %d 个", self.rule["name"], success)
         except Exception as e:
             logger.warning("[%s] 批量搬移失败，降级为逐文件: %s", self.rule["name"], e)
             for fp in file_paths:
                 try:
-                    self.client.move_file(fp, dest_dir, self.g.CONFLICT_POLICY)
+                    self.client.MoveFile({
+                        "theFilePaths": [fp],
+                        "destPath": dest_dir,
+                        "conflictPolicy": self.g.CONFLICT_POLICY,
+                    })
                     success += 1
                 except Exception as e2:
                     logger.error("[%s] 搬移失败: %s → %s: %s", self.rule["name"], fp, dest_dir, e2)
@@ -208,7 +219,7 @@ class FileMover:
                 continue
             visited.add(current)
             try:
-                entries = self.client.get_sub_files(current, force_refresh=False)
+                entries = self.client.fs.listdir_attr(current, refresh=False)
             except Exception as e:
                 logger.warning("[%s] 遍历失败（跳过）: %s — %s", self.rule["name"], current, e)
                 continue
@@ -231,13 +242,12 @@ class FileMover:
             if dir_path == source_path:
                 continue
             try:
-                entries = self.client.get_sub_files(dir_path, force_refresh=False)
+                entries = self.client.fs.listdir_attr(dir_path, refresh=False)
                 if not entries:
                     logger.debug("[%s] 删除空目录: %s", self.rule["name"], dir_path)
-                    self.client.delete_file(dir_path)
+                    self.client.DeleteFile({"path": dir_path})
                     deleted_count += 1
             except Exception as e:
                 logger.debug("[%s] 检查/删除目录失败 %s: %s", self.rule["name"], dir_path, e)
         logger.info("[%s] 空目录清理完成，共删除 %d 个", self.rule["name"], deleted_count)
         return deleted_count
-

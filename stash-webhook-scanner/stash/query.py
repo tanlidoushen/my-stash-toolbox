@@ -77,6 +77,15 @@ mutation CreatePerformer($input: PerformerCreateInput!) {
 }
 """
 
+PERFORMER_UPDATE = """
+mutation UpdatePerformer($input: PerformerUpdateInput!) {
+  performerUpdate(input: $input) {
+    id name image_path
+    stash_ids { endpoint stash_id }
+  }
+}
+"""
+
 PERFORMER_QUERY_FOR_STASH_BOX = """
 query ScrapeSingleScene($source: ScraperSourceInput!, $input: ScrapeSingleSceneInput!) {
   scrapeSingleScene(source: $source, input: $input) { performers { stored_id images name gender urls birthdate country height measurements aliases remote_site_id disambiguation ethnicity eye_color hair_color fake_tits career_start career_end tattoos } }
@@ -97,13 +106,22 @@ mutation CreateStudio($input: StudioCreateInput!) {
 }
 """
 
+STUDIO_UPDATE = """
+mutation UpdateStudio($input: StudioUpdateInput!) {
+  studioUpdate(input: $input) {
+    id name
+    stash_ids { endpoint stash_id }
+  }
+}
+"""
+
 # ── stash-box 刮削 ─────────────────────────────────────────
 
 SCRAPE_SINGLE_SCENE = """
 query ScrapeSingleScene($source: ScraperSourceInput!, $input: ScrapeSingleSceneInput!) {
   scrapeSingleScene(source: $source, input: $input) {
     title code details director urls date image remote_site_id
-    studio { stored_id name url parent { stored_id name url parent { stored_id name url } } image remote_site_id }
+    studio { stored_id name url remote_site_id }
     tags { name }
     performers { stored_id images name gender urls birthdate country height measurements aliases remote_site_id disambiguation ethnicity eye_color hair_color fake_tits career_start career_end tattoos }
   }
@@ -218,5 +236,67 @@ query LibraryStats {
   findPerformers(filter: { per_page: 0 }) { count }
   findStudios(filter: { per_page: 0 }) { count }
   findTags(filter: { per_page: 0 }) { count }
+}
+"""
+
+# ── 场景标记（markers）───────────────────────────────────
+
+SCENE_FOR_MARKER_SYNC = """
+query FindScene($id: ID!) {
+  findScene(id: $id) {
+    id code title date
+    urls
+    stash_ids { endpoint stash_id }
+    tags { id name aliases }
+    groups { scene_index group { id name } }
+    scene_markers { id seconds title primary_tag { id name } tags { id name } }
+  }
+}
+"""
+
+SCENE_MARKER_CREATE = """
+mutation SceneMarkerCreate($input: SceneMarkerCreateInput!) {
+  sceneMarkerCreate(input: $input) { id seconds title primary_tag { id name } tags { id name } }
+}
+"""
+
+SCENE_MARKER_UPDATE = """
+mutation SceneMarkerUpdate($input: SceneMarkerUpdateInput!) {
+  sceneMarkerUpdate(input: $input) { id seconds title primary_tag { id name } tags { id name } }
+}
+"""
+
+GENERATE_MARKERS = """
+mutation GenerateMarkers($input: GenerateMetadataInput!) {
+  metadataGenerate(input: $input)
+}
+"""
+
+# ── 集合（Group）─────────────────────────────────────────
+
+FIND_GROUPS = """
+query FindGroups($filter: FindFilterType) {
+  findGroups(filter: $filter) {
+    count
+    groups { id name urls }
+  }
+}
+"""
+
+FIND_GROUP = """
+query FindGroup($id: ID!) {
+  findGroup(id: $id) { id name synopsis director date urls front_image_path back_image_path }
+}
+"""
+
+GROUP_CREATE = """
+mutation GroupCreate($input: GroupCreateInput!) {
+  groupCreate(input: $input) { id name }
+}
+"""
+
+GROUP_UPDATE = """
+mutation GroupUpdate($input: GroupUpdateInput!) {
+  groupUpdate(input: $input) { id name }
 }
 """

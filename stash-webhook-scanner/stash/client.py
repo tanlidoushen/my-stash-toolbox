@@ -22,6 +22,7 @@ class StashClient:
         self.retry_delay = retry_delay if retry_delay is not None else Config.STASH_GRAPHQL_RETRY_DELAY
         self._boxes_cache = None
         self._client = None  # 惰性初始化 httpx client
+        self.last_errors = None  # 最近一次 GraphQL 业务错误（供调用方判断重试策略）
 
     async def _ensure_client(self):
         """确保 httpx AsyncClient 存在。"""
@@ -63,8 +64,10 @@ class StashClient:
                     )
                 data = resp.json()
                 if "errors" in data:
+                    self.last_errors = data["errors"]
                     logger.error("❌ GraphQL 错误: %s", data["errors"])
                     return None
+                self.last_errors = None
                 return data.get("data")
             except (httpx.TransportError, httpx.HTTPStatusError, ValueError) as e:
                 if attempt < self.retry_count:
@@ -141,4 +144,3 @@ class StashClient:
 
     def invalidate_boxes_cache(self):
         self._boxes_cache = None
-

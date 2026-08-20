@@ -113,4 +113,3 @@ async def scrape_scene_by_remote_id(client, scene_id, stash_id, stash_box_index=
         logger.warning("         - ⚠️ 场景 %s 未找到完全匹配，使用第一个结果", scene_id)
         return scraped[0]
     return scraped
-

@@ -21,6 +21,12 @@ async def _get_all_tags_cached(client):
     return _tag_cache
 
 
+def invalidate_cache():
+    """失效标签缓存（Stash 侧标签被删除/合并后必须调用，否则写库会外键失败）。"""
+    global _tag_cache
+    _tag_cache = None
+
+
 async def get_tag_with_aliases(client, tag_name):
     """查找标签（含别名匹配）。返回 tag dict 或 None。"""
     tags = await _get_all_tags_cached(client)
@@ -88,4 +94,3 @@ async def compare_tags(client, current_tags, scraped_tags):
         merged = current_norm | scraped_norm
         return True, "发现 %d 个新标签" % len(new_tags), list(merged)
     return False, "无变化", []
-

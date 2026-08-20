@@ -32,12 +32,12 @@ async def scan_detailed(client, scan_paths):
             "paths": scan_paths,
             "rescan": True,
             "scanGenerateCovers": False,
-            "scanGeneratePreviews": False,
-            "scanGenerateImagePreviews": False,
-            "scanGenerateSprites": False,
-            "scanGeneratePhashes": False,
-            "scanGenerateThumbnails": False,
-            "scanGenerateClipPreviews": False,
+            "scanGeneratePreviews": True,
+            "scanGenerateImagePreviews": True,
+            "scanGenerateSprites": True,
+            "scanGeneratePhashes": True,
+            "scanGenerateThumbnails": True,
+            "scanGenerateClipPreviews": True,
         }
     }
     data = await client.post(Q.METADATA_SCAN, variables)

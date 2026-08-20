@@ -7,6 +7,12 @@ import threading
 
 from flask import Flask, request, jsonify
 
+# vendor（pycryptodome 等）——bind mount 目录，镜像重建不丢
+import sys
+_VENDOR = "/app/vendor"
+if _VENDOR not in sys.path:
+    sys.path.insert(0, _VENDOR)
+
 from config import Config
 from server.handler import FileNotifyHandler
 from server import dedup
@@ -135,6 +141,37 @@ def trigger():
     return jsonify({"状态": "成功", "消息": "搬移流水线已执行"})
 
 
+@app.route("/api/delete_scene", methods=["POST"])
+def api_delete_scene():
+    """Yamby 删除联动：软删 Stash 记录 + TG 发确认按钮（确定删除/恢复）。
+
+    请求: {"scene_id": "123"}
+    成功: {"status": "ok", ...} 200；场景不存在 404；流程异常 500。
+    """
+    import asyncio
+    from stash.client import StashClient
+    from stash.soft_delete import soft_delete_scene
+
+    data = request.json or {}
+    scene_id = str(data.get("scene_id", "")).strip()
+    if not scene_id:
+        return jsonify({"status": "error", "message": "缺少 scene_id"}), 400
+
+    async def _flow():
+        client = StashClient(Config.STASH_URL, api_key=Config.STASH_APIKEY)
+        return await soft_delete_scene(client, scene_id)
+
+    try:
+        result = asyncio.run(_flow())
+    except Exception as e:
+        logger.exception("软删流程异常 scene=%s", scene_id)
+        return jsonify({"status": "error", "message": str(e)[:200]}), 500
+
+    if "error" in result:
+        return jsonify({"status": "error", "message": result["error"]}), 404
+    return jsonify({"status": "ok", **result}), 200
+
+
 # ────────────── Bot 线程启动 ──────────────
 
 def _start_bot_thread():
@@ -147,6 +184,14 @@ def _start_bot_thread():
 
 
 if __name__ == "__main__":
+    # 初始化校验码采集库（幂等）
+    try:
+        from db import init_db
+        init_db()
+        logger.info("💾 校验码采集库就绪 (ENABLE_CHECKSUM=%s)", Config.ENABLE_CHECKSUM)
+    except Exception as e:
+        logger.warning("校验码库初始化失败: %s", e)
+
     # 启动 bot 线程（仅当 TG_BOT_TOKEN 已配置时）
     if Config.TG_BOT_TOKEN:
         _start_bot_thread()
@@ -169,5 +214,4 @@ if __name__ == "__main__":
         debug=False,
         use_reloader=False,
     )
-
 
