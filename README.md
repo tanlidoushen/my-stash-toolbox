@@ -13,7 +13,7 @@
 
 | 工具 | 说明 |
 |------|------|
-| [clouddrive2-grpc-api](clouddrive2-grpc-api/) | CloudDrive2 gRPC API 参考文档，226 个 RPC 方法清单、调用指南与实测踩坑记录 |
+| [clouddrive2-grpc-api](clouddrive2-grpc-api/) | CloudDrive2 gRPC API 参考文档，226 个 RPC 方法清单、调用指南与实测踩坑记录；含完整 Python 封装客户端源码 [python-clouddrive-client](clouddrive2-grpc-api/python-clouddrive-client/)（proto v1.0.13） |
 | [stashdb-proxy-zh](stashdb-proxy-zh/) | stashdb.org 反代增强：全界面汉化、本地中文标签映射、本地场景匹配播放、图片缓存 |
 | [stash-webhook-scanner](stash-webhook-scanner/) | 通过 CloudDrive2 Webhook 实时触发 Stash 扫描、刮削、归类与搬运 |
 | [stash-tags-zh](stash-tags-zh/) | 中文汉化标签层级分析 + 汉化补丁导入（覆盖式），让英文标签库汉化成中文体系 |

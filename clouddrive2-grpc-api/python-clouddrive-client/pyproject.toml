@@ -1,0 +1,56 @@
+[tool.poetry]
+name = "clouddrive"
+version = "0.1.0"
+description = "Python wrapper for CloudDrive."
+authors = ["ChenyangGao <wosiwujm@gmail.com>"]
+license = "MIT"
+readme = "readme.md"
+homepage = "https://github.com/ChenyangGao/web-mount-packs/tree/main/python-clouddrive-client"
+repository = "https://github.com/ChenyangGao/web-mount-packs/tree/main/python-clouddrive-client"
+keywords = ["client", "clouddrive"]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3 :: Only",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+include = [
+    "LICENSE",
+]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+glob_pattern = "*"
+grpcio = "*"
+grpcio-tools = "*"
+grpclib = "*"
+"grpclib[protobuf]" = "*"
+http_response = "*"
+path_ignore_pattern = "*"
+protobuf = "*"
+python-argtools = "*"
+python-dateutil = "*"
+python-download = ">=0.0.3"
+python-filewrap = ">=0.1.1"
+python-httpfile = ">=0.0.2"
+python-http_request = ">=0.0.6"
+python-urlopen = "*"
+yarl = "*"
+
+[tool.poetry.scripts]
+python-clouddrive = "clouddrive.__main__:main"
+clouddrive = "clouddrive.__main__:main"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[[tool.poetry.packages]]
+include = "clouddrive"
