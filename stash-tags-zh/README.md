@@ -19,15 +19,20 @@
 
 | 文件 | 内容 | 数量 |
 |------|------|------|
-| `parents.json` | 有下级标签的**中文上级标签**（含子标签列表，按子数降序） | 28 |
-| `children.json` | 有上级标签的**中文下级标签**（含父标签列表，按父数降序） | 2785 |
+| `tags-v2.json` | 中文汉化标签全量（含云端 `stash_id`，按名称排序） | 2941 |
+
+> **v2 数据格式**：每个标签含 `name` / `aliases` / `description` / `stash_id`（stashdb 云端 uuid）。
+> 来源：本地 Stash 全量标签，与云端标签**一一绑定**（每个云端标签唯一对应一个本地标签）后导出，
+> 用于校验汉化结果、回填云端 id。
+>
+> v1 的层级分析数据（`parents.json` / `children.json`，不含 stash_id）已移除。
 
 ---
 
 ## 用法
 
 ```bash
-# 拉取数据分析（生成 parents.json / children.json）
+# 拉取层级分析数据（v1 工具，生成 parents.json / children.json）
 python3 fetch_tags.py --url http://<stash>:9999/graphql
 
 # 汉化补丁导入（预览，不写库）
@@ -38,7 +43,8 @@ python3 import_tags.py --url http://<stash>:9999/graphql --apply
 ```
 
 - 中文判定：标签名含 `\u4e00-\u9fff` 中文字符
-- 拉取日期：2026-08-13（全量 3903 标签，中文 3586）
+- v2 数据快照：2026-09-11（全量 4077 标签，含云端 stash_id 的 2941）
+- v1 拉取日期：2026-08-13（全量 3903 标签，中文 3586）
 
 ---
 
