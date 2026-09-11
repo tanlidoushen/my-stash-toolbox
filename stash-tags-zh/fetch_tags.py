@@ -1,22 +1,23 @@
 #!/usr/bin/env python3
 """
-stash-tags-zh — 从 Stash GraphQL 拉取中文汉化标签层级分析
+stash-tags-zh — 从 Stash GraphQL 拉取汉化标签（v2 格式）
 
 输出:
-  parents.json   — 有下级标签的中文上级标签（含其下级标签列表）
-  children.json  — 有上级标签的中文下级标签（含其上级标签）
-孤儿标签（无父无子）不处理。
+  tags-v2.json — 标签清单（name / aliases / description / stash_id）
+
+v2 数据 = 带云端 stash_id 的标签（默认只导出有 stash_id 的）。
+每个标签与云端 stashdb 标签一一绑定后导出，用于汉化补丁导入、校验与回填。
 
 用法:
   python3 fetch_tags.py --url http://<stash>:9999/graphql
+      # 默认：只导出有 stash_id 的标签
+  python3 fetch_tags.py --url http://<stash>:9999/graphql --all
+      # 导出全部标签（无 stash_id 的不含该字段）
+  python3 fetch_tags.py --url http://<stash>:9999/graphql --out tags-v2.json
 """
 import argparse
 import json
-import re
-import sys
 import urllib.request
-
-CN_RE = re.compile(r"[\u4e00-\u9fff]")
 
 
 def gql(url, query, variables=None):
@@ -38,8 +39,7 @@ def fetch_all_tags(url):
         count
         tags {
           id name aliases description
-          parents { id name }
-          children { id name }
+          stash_ids { endpoint stash_id }
         }
       }
     }
@@ -49,55 +49,40 @@ def fetch_all_tags(url):
     return data.get("count", 0), data.get("tags", [])
 
 
-def is_cn(name):
-    return bool(CN_RE.search(name or ""))
-
-
 def main():
-    parser = argparse.ArgumentParser(description="stash-tags-zh 标签拉取")
+    parser = argparse.ArgumentParser(description="stash-tags-zh 标签拉取 (v2)")
     parser.add_argument("--url", required=True, help="Stash GraphQL 地址，如 http://<stash>:9999/graphql")
+    parser.add_argument("--out", default="tags-v2.json", help="输出文件名（默认 tags-v2.json）")
+    parser.add_argument("--all", action="store_true", help="导出全部标签（默认只导出有 stash_id 的）")
     args = parser.parse_args()
 
     count, tags = fetch_all_tags(args.url)
     print(f"Stash 标签总数: {count}，拉取: {len(tags)}")
 
-    cn_tags = [t for t in tags if is_cn(t["name"])]
-    print(f"中文标签: {len(cn_tags)}")
-
-    # 有下级标签的中文上级标签（不含本地 id，便于分享）
-    parents = [
-        {
+    out = []
+    n_with_sid = 0
+    for t in tags:
+        sids = [s["stash_id"] for s in (t.get("stash_ids") or [])]
+        if sids:
+            n_with_sid += 1
+        if not sids and not args.all:
+            continue
+        item = {
             "name": t["name"],
             "aliases": t.get("aliases") or [],
             "description": t.get("description") or "",
-            "children_count": len(t["children"]),
-            "children": [{"name": c["name"]} for c in t["children"]],
         }
-        for t in cn_tags
-        if t["children"]
-    ]
-    parents.sort(key=lambda x: -x["children_count"])
+        if sids:
+            item["stash_id"] = sids[0] if len(sids) == 1 else sids
+        out.append(item)
 
-    # 有上级标签的中文下级标签（不含本地 id，便于分享）
-    children = [
-        {
-            "name": t["name"],
-            "aliases": t.get("aliases") or [],
-            "description": t.get("description") or "",
-            "parents_count": len(t["parents"]),
-            "parents": [{"name": p["name"]} for p in t["parents"]],
-        }
-        for t in cn_tags
-        if t["parents"]
-    ]
-    children.sort(key=lambda x: -x["parents_count"])
+    out.sort(key=lambda x: x["name"])
 
-    with open("parents.json", "w", encoding="utf-8") as f:
-        json.dump(parents, f, ensure_ascii=False, indent=2)
-    with open("children.json", "w", encoding="utf-8") as f:
-        json.dump(children, f, ensure_ascii=False, indent=2)
+    with open(args.out, "w", encoding="utf-8") as f:
+        json.dump(out, f, ensure_ascii=False, indent=2)
 
-    print(f"输出: parents.json ({len(parents)} 个上级标签) / children.json ({len(children)} 个下级标签)")
+    print(f"有 stash_id 的标签: {n_with_sid}")
+    print(f"输出: {args.out} ({len(out)} 个标签)")
 
 
 if __name__ == "__main__":
